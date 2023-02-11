@@ -1,7 +1,7 @@
 CXX=g++
 CPPFLAGS+=-Dunix
 CPPFLAGS+=-DNOJIT
-CXXFLAGS=-O3 -mcpu=apple-m1
+CXXFLAGS=-Ofast -mcpu=apple-m1
 PREFIX=/usr/local
 BINDIR=$(PREFIX)/bin
 MANDIR=$(PREFIX)/share/man
