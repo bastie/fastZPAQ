@@ -96,8 +96,6 @@ Possible options:
 #endif
 
 #else  // Assume Windows
-#include <windows.h>
-#include <io.h>
 #endif
 
 // For testing -Dunix in Windows
@@ -201,31 +199,6 @@ private:
 };
 
 #else  // Windows
-typedef DWORD ThreadReturn;
-typedef HANDLE ThreadID;
-void run(ThreadID& tid, ThreadReturn(*f)(void*), void* arg) {
-  tid=CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)f, arg, 0, NULL);
-  if (tid==NULL) error("CreateThread failed");
-}
-void join(ThreadID& tid) {WaitForSingleObject(tid, INFINITE);}
-typedef HANDLE Mutex;
-void init_mutex(Mutex& m) {m=CreateMutex(NULL, FALSE, NULL);}
-void lock(Mutex& m) {WaitForSingleObject(m, INFINITE);}
-void release(Mutex& m) {ReleaseMutex(m);}
-void destroy_mutex(Mutex& m) {CloseHandle(m);}
-
-class Semaphore {
-public:
-  enum {MAXCOUNT=2000000000};
-  Semaphore(): h(NULL) {}
-  void init(int n) {assert(!h); h=CreateSemaphore(NULL, n, MAXCOUNT, NULL);}
-  void destroy() {assert(h); CloseHandle(h);}
-  int wait() {assert(h); return WaitForSingleObject(h, INFINITE);}
-  void signal() {assert(h); ReleaseSemaphore(h, 1, NULL);}
-private:
-  HANDLE h;  // Windows semaphore
-};
-
 #endif
 
 // Global variables
@@ -233,39 +206,7 @@ int64_t global_start=0;  // set to mtime() at start of main()
 
 // In Windows, convert 16-bit wide string to UTF-8 and \ to /
 #ifndef unix
-string wtou(const wchar_t* s) {
-  assert(sizeof(wchar_t)==2);  // Not true in Linux
-  assert((wchar_t)(-1)==65535);
-  string r;
-  if (!s) return r;
-  for (; *s; ++s) {
-    if (*s=='\\') r+='/';
-    else if (*s<128) r+=*s;
-    else if (*s<2048) r+=192+*s/64, r+=128+*s%64;
-    else r+=224+*s/4096, r+=128+*s/64%64, r+=128+*s%64;
-  }
-  return r;
-}
 
-// In Windows, convert UTF-8 string to wide string ignoring
-// invalid UTF-8 or >64K. Convert "/" to slash (default "\").
-std::wstring utow(const char* ss, char slash='\\') {
-  assert(sizeof(wchar_t)==2);
-  assert((wchar_t)(-1)==65535);
-  std::wstring r;
-  if (!ss) return r;
-  const unsigned char* s=(const unsigned char*)ss;
-  for (; s && *s; ++s) {
-    if (s[0]=='/') r+=slash;
-    else if (s[0]<128) r+=s[0];
-    else if (s[0]>=192 && s[0]<224 && s[1]>=128 && s[1]<192)
-      r+=(s[0]-192)*64+s[1]-128, ++s;
-    else if (s[0]>=224 && s[0]<240 && s[1]>=128 && s[1]<192
-             && s[2]>=128 && s[2]<192)
-      r+=(s[0]-224)*4096+(s[1]-128)*64+s[2]-128, s+=2;
-  }
-  return r;
-}
 #endif
 
 // Print a UTF-8 string to f (stdout, stderr) so it displays properly
@@ -275,16 +216,6 @@ void printUTF8(const char* s, FILE* f=stdout) {
 #ifdef unix
   fprintf(f, "%s", s);
 #else
-  const HANDLE h=(HANDLE)_get_osfhandle(_fileno(f));
-  DWORD ft=GetFileType(h);
-  if (ft==FILE_TYPE_CHAR) {
-    fflush(f);
-    std::wstring w=utow(s, '/');  // Windows console: convert to UTF-16
-    DWORD n=0;
-    WriteConsole(h, w.c_str(), w.size(), &n, 0);
-  }
-  else  // stdout redirected to file
-    fprintf(f, "%s", s);
 #endif
 }
 
@@ -295,9 +226,6 @@ int64_t mtime() {
   gettimeofday(&tv, 0);
   return tv.tv_sec*1000LL+tv.tv_usec/1000;
 #else
-  int64_t t=GetTickCount();
-  if (t<global_start) t+=0x100000000LL;
-  return t;
 #endif
 }
 
@@ -385,63 +313,6 @@ const char* const RBPLUS="rb+";
 const char* const WBPLUS="wb+";
 
 #else // Windows
-typedef HANDLE FP;
-const FP FPNULL=INVALID_HANDLE_VALUE;
-typedef enum {RB, WB, RBPLUS, WBPLUS} MODE;  // fopen modes
-
-// Open file. Only modes "rb", "wb", "rb+" and "wb+" are supported.
-FP fopen(const char* filename, MODE mode) {
-  assert(filename);
-  DWORD access=0;
-  if (mode!=WB) access=GENERIC_READ;
-  if (mode!=RB) access|=GENERIC_WRITE;
-  DWORD disp=OPEN_ALWAYS;  // wb or wb+
-  if (mode==RB || mode==RBPLUS) disp=OPEN_EXISTING;
-  DWORD share=FILE_SHARE_READ;
-  if (mode==RB) share|=FILE_SHARE_WRITE|FILE_SHARE_DELETE;
-  return CreateFile(utow(filename).c_str(), access, share,
-                    NULL, disp, FILE_ATTRIBUTE_NORMAL, NULL);
-}
-
-// Close file
-int fclose(FP fp) {
-  return CloseHandle(fp) ? 0 : EOF;
-}
-
-// Read nobj objects of size size into ptr. Return number of objects read.
-size_t fread(void* ptr, size_t size, size_t nobj, FP fp) {
-  DWORD r=0;
-  ReadFile(fp, ptr, size*nobj, &r, NULL);
-  if (size>1) r/=size;
-  return r;
-}
-
-// Write nobj objects of size size from ptr to fp. Return number written.
-size_t fwrite(const void* ptr, size_t size, size_t nobj, FP fp) {
-  DWORD r=0;
-  WriteFile(fp, ptr, size*nobj, &r, NULL);
-  if (size>1) r/=size;
-  return r;
-}
-
-// Move file pointer by offset. origin is SEEK_SET (from start), SEEK_CUR,
-// (from current position), or SEEK_END (from end).
-int fseeko(FP fp, int64_t offset, int origin) {
-  if (origin==SEEK_SET) origin=FILE_BEGIN;
-  else if (origin==SEEK_CUR) origin=FILE_CURRENT;
-  else if (origin==SEEK_END) origin=FILE_END;
-  LONG h=uint64_t(offset)>>32;
-  SetFilePointer(fp, offset&0xffffffffull, &h, origin);
-  return GetLastError()!=NO_ERROR;
-}
-
-// Get file position
-int64_t ftello(FP fp) {
-  LONG h=0;
-  DWORD r=SetFilePointer(fp, 0, &h, FILE_CURRENT);
-  return r+(uint64_t(h)<<32);
-}
-
 #endif
 
 // Return true if a file or directory (UTF-8 without trailing /) exists.
@@ -453,8 +324,6 @@ bool exists(string filename) {
   struct stat sb;
   return !lstat(filename.c_str(), &sb);
 #else
-  return GetFileAttributes(utow(filename.c_str()).c_str())
-         !=INVALID_FILE_ATTRIBUTES;
 #endif
 }
 
@@ -463,7 +332,6 @@ bool delete_file(const char* filename) {
 #ifdef unix
   return remove(filename)==0;
 #else
-  return DeleteFile(utow(filename).c_str());
 #endif
 }
 
@@ -475,30 +343,6 @@ void printerr(const char* filename) {
 }
 
 #else
-
-// Print last error message
-void printerr(const char* filename) {
-  fflush(stdout);
-  int err=GetLastError();
-  printUTF8(filename, stderr);
-  if (err==ERROR_FILE_NOT_FOUND)
-    fprintf(stderr, ": file not found\n");
-  else if (err==ERROR_PATH_NOT_FOUND)
-    fprintf(stderr, ": path not found\n");
-  else if (err==ERROR_ACCESS_DENIED)
-    fprintf(stderr, ": access denied\n");
-  else if (err==ERROR_SHARING_VIOLATION)
-    fprintf(stderr, ": sharing violation\n");
-  else if (err==ERROR_BAD_PATHNAME)
-    fprintf(stderr, ": bad pathname\n");
-  else if (err==ERROR_INVALID_NAME)
-    fprintf(stderr, ": invalid name\n");
-  else if (err==ERROR_NETNAME_DELETED)
-    fprintf(stderr, ": network name no longer available\n");
-  else
-    fprintf(stderr, ": Windows error %d\n", err);
-}
-
 #endif
 
 // Close fp if open. Set date and attributes unless 0
@@ -515,31 +359,6 @@ void close(const char* filename, int64_t date, int64_t attr, FP fp=FPNULL) {
   if ((attr&255)=='u')
     chmod(filename, attr>>8);
 #else
-  const bool ads=strstr(filename, ":$DATA")!=0;  // alternate data stream?
-  if (date>0 && !ads) {
-    if (fp==FPNULL)
-      fp=CreateFile(utow(filename).c_str(),
-                    FILE_WRITE_ATTRIBUTES,
-                    FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,
-                    NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-    if (fp!=FPNULL) {
-      SYSTEMTIME st;
-      st.wYear=date/10000000000LL%10000;
-      st.wMonth=date/100000000%100;
-      st.wDayOfWeek=0;  // ignored
-      st.wDay=date/1000000%100;
-      st.wHour=date/10000%100;
-      st.wMinute=date/100%100;
-      st.wSecond=date%100;
-      st.wMilliseconds=0;
-      FILETIME ft;
-      SystemTimeToFileTime(&st, &ft);
-      SetFileTime(fp, NULL, NULL, &ft);
-    }
-  }
-  if (fp!=FPNULL) CloseHandle(fp);
-  if ((attr&255)=='w' && !ads)
-    SetFileAttributes(utow(filename).c_str(), attr>>8);
 #endif
 }
 
@@ -559,7 +378,6 @@ void makepath(string path, int64_t date=0, int64_t attr=0) {
 #ifdef unix
       mkdir(path.c_str(), 0777);
 #else
-      CreateDirectory(utow(path.c_str()).c_str(), 0);
 #endif
       path[i]='/';
     }
@@ -573,22 +391,6 @@ void makepath(string path, int64_t date=0, int64_t attr=0) {
 }
 
 #ifndef unix
-
-// Truncate filename to length. Return -1 if error, else 0.
-int truncate(const char* filename, int64_t length) {
-  std::wstring w=utow(filename);
-  HANDLE out=CreateFile(w.c_str(), GENERIC_READ | GENERIC_WRITE,
-                        0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-  if (out!=INVALID_HANDLE_VALUE) {
-    LONG hi=length>>32;
-    if (SetFilePointer(out, length, &hi, FILE_BEGIN)
-             !=INVALID_SET_FILE_POINTER
-        && SetEndOfFile(out)
-        && CloseHandle(out))
-      return 0;
-  }
-  return -1;
-}
 #endif
 
 /////////////////////////////// Archive ///////////////////////////////
@@ -873,9 +675,6 @@ int numberOfProcessors() {
 #endif
 #else
 
-  // In Windows return %NUMBER_OF_PROCESSORS%
-  const char* p=getenv("NUMBER_OF_PROCESSORS");
-  if (p) rc=atoi(p);
 #endif
   if (rc<1) rc=1;
   if (sizeof(char*)==4 && rc>2) rc=2;
@@ -896,7 +695,6 @@ struct StringWriter: public libzpaq::Writer {
 // In Windows convert upper case to lower case.
 inline int tolowerW(int c) {
 #ifndef unix
-  if (c>='A' && c<='Z') return c-'A'+'a';
 #endif
   return c;
 }
@@ -1002,11 +800,6 @@ struct VER {
 
 // Windows API functions not in Windows XP to be dynamically loaded
 #ifndef unix
-typedef HANDLE (WINAPI* FindFirstStreamW_t)
-                   (LPCWSTR, STREAM_INFO_LEVELS, LPVOID, DWORD);
-FindFirstStreamW_t findFirstStreamW=0;
-typedef BOOL (WINAPI* FindNextStreamW_t)(HANDLE, LPVOID);
-FindNextStreamW_t findNextStreamW=0;
 #endif
 
 class CompressJob;
@@ -1136,10 +929,6 @@ string append_path(string a, string b) {
   int na=a.size();
   int nb=b.size();
 #ifndef unix
-  if (nb>1 && b[1]==':') {  // remove : from drive letter
-    if (nb>2 && b[2]!='/') b[1]='/';
-    else b=b[0]+b.substr(2), --nb;
-  }
 #endif
   if (nb>0 && b[0]=='/') b=b.substr(1);
   if (na>0 && a[na-1]=='/') a=a.substr(0, na-1);
@@ -1329,16 +1118,6 @@ int Jidac::doCommand(int argc, const char** argv) {
 
   // Load dynamic functions in Windows Vista and later
 #ifndef unix
-  HMODULE h=GetModuleHandle(TEXT("kernel32.dll"));
-  if (h==NULL) printerr("GetModuleHandle");
-  else {
-    findFirstStreamW=
-      (FindFirstStreamW_t)GetProcAddress(h, "FindFirstStreamW");
-    findNextStreamW=
-      (FindNextStreamW_t)GetProcAddress(h, "FindNextStreamW");
-  }
-  if (!findFirstStreamW || !findNextStreamW)
-    printf("Alternate streams not supported in Windows XP.\n");
 #endif
 
   // Execute command
@@ -1742,60 +1521,6 @@ void Jidac::scandir(string filename) {
     perror(filename.c_str());
 
 #else  // Windows: expand wildcards in filename
-
-  // Expand wildcards
-  WIN32_FIND_DATA ffd;
-  string t=filename;
-  if (t.size()>0 && t[t.size()-1]=='/') t+="*";
-  HANDLE h=FindFirstFile(utow(t.c_str()).c_str(), &ffd);
-  if (h==INVALID_HANDLE_VALUE
-      && GetLastError()!=ERROR_FILE_NOT_FOUND
-      && GetLastError()!=ERROR_PATH_NOT_FOUND)
-    printerr(t.c_str());
-  while (h!=INVALID_HANDLE_VALUE) {
-
-    // For each file, get name, date, size, attributes
-    SYSTEMTIME st;
-    int64_t edate=0;
-    if (FileTimeToSystemTime(&ffd.ftLastWriteTime, &st))
-      edate=st.wYear*10000000000LL+st.wMonth*100000000LL+st.wDay*1000000
-            +st.wHour*10000+st.wMinute*100+st.wSecond;
-    const int64_t esize=ffd.nFileSizeLow+(int64_t(ffd.nFileSizeHigh)<<32);
-    const int64_t eattr='w'+(int64_t(ffd.dwFileAttributes)<<8);
-
-    // Ignore links, the names "." and ".." or any unselected file
-    t=wtou(ffd.cFileName);
-    if (ffd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT
-        || t=="." || t=="..") edate=0;  // don't add
-    string fn=path(filename)+t;
-
-    // Save directory names with a trailing / and scan their contents
-    // Otherwise, save plain files
-    if (edate) {
-      if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) fn+="/";
-      addfile(fn, edate, esize, eattr);
-      if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
-        fn+="*";
-        scandir(fn);
-      }
-
-      // enumerate alternate streams (Win2003/Vista or later)
-      else if (findFirstStreamW && findNextStreamW) {
-        WIN32_FIND_STREAM_DATA fsd;
-        HANDLE ah=findFirstStreamW(utow(fn.c_str()).c_str(),
-            FindStreamInfoStandard, &fsd, 0);
-        while (ah!=INVALID_HANDLE_VALUE && findNextStreamW(ah, &fsd))
-          addfile(fn+wtou(fsd.cStreamName), edate,
-              fsd.StreamSize.QuadPart, eattr);
-        if (ah!=INVALID_HANDLE_VALUE) FindClose(ah);
-      }
-    }
-    if (!FindNextFile(h, &ffd)) {
-      if (GetLastError()!=ERROR_NO_MORE_FILES) printerr(fn.c_str());
-      break;
-    }
-  }
-  FindClose(h);
 #endif
 }
 
@@ -2978,12 +2703,6 @@ ThreadReturn decompressThread(void* arg) {
                 release(job.mutex);
               }
 #ifndef unix
-              else if ((p->second.attr&0x200ff)==0x20000+'w') {  // sparse?
-                DWORD br=0;
-                if (!DeviceIoControl(job.outf, FSCTL_SET_SPARSE,
-                    NULL, 0, NULL, 0, &br, NULL))  // set sparse attribute
-                  printerr(filename.c_str());
-              }
 #endif
             }
           }
@@ -3702,20 +3421,6 @@ int Jidac::list() {
 #ifdef unix
 int main(int argc, const char** argv) {
 #else
-#ifdef _MSC_VER
-int wmain(int argc, LPWSTR* argw) {
-#else
-int main() {
-  int argc=0;
-  LPWSTR* argw=CommandLineToArgvW(GetCommandLine(), &argc);
-#endif
-  vector<string> args(argc);
-  libzpaq::Array<const char*> argp(argc);
-  for (int i=0; i<argc; ++i) {
-    args[i]=wtou(argw[i]);
-    argp[i]=args[i].c_str();
-  }
-  const char** argv=&argp[0];
 #endif
 
   global_start=mtime();  // get start time

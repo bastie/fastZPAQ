@@ -29,12 +29,12 @@ See libzpaq.h for additional documentation.
 #include <stdio.h>
 
 #ifdef unix
-#ifndef NOJIT
-#include <sys/mman.h>
-#endif
+  #ifndef NOJIT
+    #include <sys/mman.h>
+  #endif
 #else
-#include <windows.h>
-#include <wincrypt.h>
+  #include <windows.h>
+  #include <wincrypt.h>
 #endif
 
 namespace libzpaq {
@@ -71,23 +71,20 @@ void allocx(U8* &p, int &n, int newsize) {
 #else
   if (p || n) {
     if (p)
-#ifdef unix
+  #ifdef unix
       munmap(p, n);
-#else // Windows
-      VirtualFree(p, 0, MEM_RELEASE);
-#endif
+  #else // Windows
+  #endif
     p=0;
     n=0;
   }
   if (newsize>0) {
-#ifdef unix
+  #ifdef unix
     p=(U8*)mmap(0, newsize, PROT_READ|PROT_WRITE|PROT_EXEC,
                 MAP_PRIVATE|MAP_ANON, -1, 0);
     if ((void*)p==MAP_FAILED) p=0;
-#else
-    p=(U8*)VirtualAlloc(0, newsize, MEM_RESERVE|MEM_COMMIT,
-                        PAGE_EXECUTE_READWRITE);
-#endif
+  #else
+  #endif
     if (p)
       n=newsize;
     else {
@@ -691,14 +688,6 @@ void random(char* buf, int n) {
     error("key generation failed");
   }
 #else
-  HCRYPTPROV h;
-  if (CryptAcquireContext(&h, NULL, NULL, PROV_RSA_FULL,
-      CRYPT_VERIFYCONTEXT) && CryptGenRandom(h, n, (BYTE*)buf))
-    CryptReleaseContext(h, 0);
-  else {
-    fprintf(stderr, "CryptGenRandom: error %d\n", int(GetLastError()));
-    error("key generation failed");
-  }
 #endif
   if (n>=1 && (buf[0]=='z' || buf[0]=='7'))
     buf[0]^=0x80;
@@ -3303,7 +3292,6 @@ int ZPAQL::assemble() {
 #if defined(unix) && !defined(__CYGWIN__)
     put2l(0x48bf, this);      // mov rdi, this
 #else  // Windows
-    put2l(0x48b9, this);      // mov rcx, this
 #endif
     put2l(0x49bb, &flush1);   // mov r11, &flush1
     put3(0x41ffd3);           // call r11
@@ -3847,7 +3835,6 @@ int Predictor::assemble_p() {
     put4(0x8b7c2414);         // mov edi,[esp+0x14] ; pr
   else {
 #if !defined(unix) || defined(__CYGWIN__)
-    put3(0x4889cf);           // mov rdi, rcx (1st arg in Win64)
 #endif
   }
 
@@ -4238,8 +4225,6 @@ int Predictor::assemble_p() {
 #if defined(unix) && !defined(__CYGWIN__)  // (1st arg already in rdi)
     put3(0x4889f5);            // mov rbp, rsi (2nd arg in Linux-64)
 #else
-    put3(0x4889cf);            // mov rdi, rcx (1st arg in Win64)
-    put3(0x4889d5);            // mov rbp, rdx (2nd arg)
 #endif
   }
 
