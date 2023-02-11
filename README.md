@@ -89,7 +89,7 @@ get results like ...
 
     compressor       file         time                 size                         performance
     -------------------------------------------------------------------------------------------------
-    none                             0 s      1.000.000.000 byte (100,00%)             all
+    none            enwik9           0 s      1.000.000.000 byte (100,00%)             all
     gzip            enwik9       30,66 s        322.789.249 byte ( 32,28%)          22.087.760 byte/s
     zip             enwik9       30,74 s        322.592.132 byte ( 32,26%)          22.036.690 byte/s
     xz              enwik9       55,36 s        232.378.008 byte ( 23,24%)          13.866.004 byte/s
