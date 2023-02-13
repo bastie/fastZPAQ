@@ -85,12 +85,15 @@ Call with...
 * Apple gzip 400 : ```gzip --best --keep [file]``` (OS included)
 * zopfli : ```zopfli --i100 [file]```
 * bzip2 : ```bzip2 -zk9 [enwik9]```
+* pigz (gzip) : ```pigz --best --keep [file]```  (8 threads per default)
+* pigz (zopfli) : ```pigz -11 -iterations 100 --keep [file]``` (8 threads per default)
 
 get results like ...
 
     compressor       file         time                 size                         performance
     -------------------------------------------------------------------------------------------------
     none            enwik9           0 s      1.000.000.000 byte (100,00%)             all
+    pigz (gzip)     enwik9        5,21 s        322.914.671 byte ( 32,29%)         129.958.796 byte/s
     gzip            enwik9       30,66 s        322.789.249 byte ( 32,28%)          22.087.760 byte/s
     zip             enwik9       30,74 s        322.592.132 byte ( 32,26%)          22.036.690 byte/s
     bzip2           enwik9       48,87 s        253.977.891 byte ( 25,40%)          15.265.441 byte/s
@@ -99,8 +102,11 @@ get results like ...
     zpaq (fast)     enwik9      298,79 s        168.590.741 byte ( 16,86%)           2.782.587 byte/s 
     zstd            enwik9      313,13 s        214.871.235 byte ( 21,49%)           2.507.337 byte/s
     zpaq (homebrew) enwik9      420,97 s        168.590.741 byte ( 16,86%)           1.974.984 byte/s
+    pigz (zopfli)*  enwik9      986,69 s        309.510.749 byte ( 30,95%)             699.803 byte/s
     brotli          enwik9    1.418,68 s        223.348.686 byte ( 22,34%)             547.446 byte/s
     zopfli          enwik9    6.660,01 s        309.453.089 byte ( 30,95%)             103.685 byte/s
+    
+    * in result of also time 800,07 s is reachable the real performance is 863.036 byte/s
 
 ## cloc
 
