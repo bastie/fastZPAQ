@@ -76,8 +76,8 @@ To generate a man page in Linux or Cygwin:
 Call with...
 
 * xz : ```xz --extreme --threads=12 --keep [file]```
-* zpaq (homebrew) : ```/opt/homebrew/Cellar/zpaq/7.15_1/bin/zpaq a [file].zpaq [file] -threads 12 -method 9```
-* zpaq (fast) : ```./zpaq a [file].zpaq [file] -threads 12 -method 9``` (self build)
+* zpaq (homebrew) : ```/opt/homebrew/Cellar/zpaq/7.15_1/bin/zpaq a [file].zpaq [file] -method 9``` (12 threads on my test system)
+* zpaq (fast) : ```./zpaq a [file].zpaq [file] -method 9``` (self build, ASM specific)
 * Infozip 3.0 : ```zip -9 [file].zip [file]``` (OS included)
 * zstd : ```zstd --ultra -22 --long -T12 [file] -o [file].zstd```
 * 7zip : ```7zz a -mmt12 -mx9 -slp [file].7z [file]```
@@ -92,27 +92,28 @@ get results like ...
     none            enwik9           0 s      1.000.000.000 byte (100,00%)             all
     gzip            enwik9       30,66 s        322.789.249 byte ( 32,28%)          22.087.760 byte/s
     zip             enwik9       30,74 s        322.592.132 byte ( 32,26%)          22.036.690 byte/s
+    bzip2           enwik9       48,87 s        253.977.891 byte ( 25,40%)          15.265.441 byte/s
     xz              enwik9       55,36 s        232.378.008 byte ( 23,24%)          13.866.004 byte/s
     7zip            enwik9      143,90 s        214.790.773 byte ( 21,48%)           5.456.631 byte/s
+    zpaq (fast)     enwik9      298,79 s        168.590.741 byte ( 16,86%)           2.782.587 byte/s 
     zstd            enwik9      313,13 s        214.877.283 byte ( 21,49%)           2.507.337 byte/s
-    zpag (fast)     enwik9      410,51 s        168.590.741 byte ( 16,86%)           2.025.308 byte/s
     zpaq (homebrew) enwik9      420,97 s        168.590.741 byte ( 16,86%)           1.974.984 byte/s
     brotli          enwik9    1.418,68 s        223.348.686 byte ( 22,34%)             547.446 byte/s
     zopfli          enwik9    6.660,01 s        309.453.089 byte ( 30,95%)             103.685 byte/s
 
 ## cloc
 
-count line of codes and comments
+In result of specific target Apple ARM64 (M1/M2) removed some unused code.
 
     -------------------------------------------------------------------------------
     Language                     files          blank        comment           code
     -------------------------------------------------------------------------------
-    C++                              2            840           1177           9143
+    C++                              2            828           1179           9057
     C/C++ Header                     1            247            772            491
     Markdown                         1             31              0             87
     make                             1              8              0             28
     -------------------------------------------------------------------------------
-    SUM:                             5           1126           1949           9749
+    SUM:                             5           1114           1951           9663
     -------------------------------------------------------------------------------
-
+    
 ** EOF **
