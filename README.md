@@ -84,6 +84,7 @@ Call with...
 * brotli : ```brotli -o [file].br -q 11 -w 24 [file]```
 * Apple gzip 400 : ```gzip --best --keep [file]``` (OS included)
 * zopfli : ```zopfli --i100 [file]```
+* bzip2 : ```bzip2 -zk9 [enwik9]```
 
 get results like ...
 
