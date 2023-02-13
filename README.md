@@ -97,7 +97,7 @@ get results like ...
     xz              enwik9       55,36 s        232.378.008 byte ( 23,24%)          13.866.004 byte/s
     7zip            enwik9      143,90 s        214.790.773 byte ( 21,48%)           5.456.631 byte/s
     zpaq (fast)     enwik9      298,79 s        168.590.741 byte ( 16,86%)           2.782.587 byte/s 
-    zstd            enwik9      313,13 s        214.877.283 byte ( 21,49%)           2.507.337 byte/s
+    zstd            enwik9      313,13 s        214.871.235 byte ( 21,49%)           2.507.337 byte/s
     zpaq (homebrew) enwik9      420,97 s        168.590.741 byte ( 16,86%)           1.974.984 byte/s
     brotli          enwik9    1.418,68 s        223.348.686 byte ( 22,34%)             547.446 byte/s
     zopfli          enwik9    6.660,01 s        309.453.089 byte ( 30,95%)             103.685 byte/s
