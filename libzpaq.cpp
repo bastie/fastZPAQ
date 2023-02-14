@@ -307,8 +307,6 @@ static inline void STORE32H(U32& x, unsigned char* y) {
 
 // Initialize encryption tables and round key. keylen is 16, 24, or 32.
 AES_CTR::AES_CTR(const char* key, int keylen, const char* iv) {
-  assert(key  != NULL);
-  assert(keylen==16 || keylen==24 || keylen==32);
 
   // Initialize IV (default 0)
   iv0=iv1=0;
@@ -539,9 +537,6 @@ void AES_CTR::encrypt(char* buf, int n, U64 offset) {
 // output size dkLen a multiple of 32, and pwLen <= 64.
 static void pbkdf2(const char* pw, int pwLen, const char* salt, int saltLen,
                    int c, char* buf, int dkLen) {
-  assert(c==1);
-  assert(dkLen%32==0);
-  assert(pwLen<=64);
 
   libzpaq::SHA256 sha256;
   char b[32];
@@ -588,7 +583,6 @@ static void salsa8(U32* b) {
 
 // BlockMix_{Salsa20/8, r} on b[0..128*r-1]
 static void blockmix(U32* b, int r) {
-  assert(r<=8);
   U32 x[16];
   U32 y[256];
   memcpy(x, b+32*r-16, 64);
@@ -623,8 +617,6 @@ static void smix(char* b, int r, int n) {
 void scrypt(const char* pw, int pwlen,
             const char* salt, int saltlen,
             int n, int r, int p, char* buf, int buflen) {
-  assert(r<=8);
-  assert(n>0 && (n&(n-1))==0);  // power of 2?
   libzpaq::Array<char> b(p*r*128);
   pbkdf2(pw, pwlen, salt, saltlen, 1, &b[0], p*r*128);
   for (int i=0; i<p; ++i) smix(&b[i*r*128], r, n);
@@ -816,11 +808,6 @@ StateTable::StateTable() {
 // If pp is true, then write only the postprocessor code.
 bool ZPAQL::write(Writer* out2, bool pp) {
   if (header.size()<=6) return false;
-  assert(header[0]+256*header[1]==cend-2+hend-hbegin);
-  assert(cend>=7);
-  assert(hbegin>=cend);
-  assert(hend>=hbegin);
-  assert(out2);
   if (!pp) {  // if not a postprocessor then write COMP
     for (int i=0; i<cend; ++i)
       out2->put(header[i]);
@@ -864,17 +851,11 @@ int ZPAQL::read(Reader* in2) {
   hbegin=hend=cend+128;
   if (hend>hsize+129) error("missing HCOMP");
   while (hend<hsize+129) {
-    assert(hend<header.isize()-8);
     int op=in2->get();
     if (op==-1) error("unexpected end of file");
     header[hend++]=op;
   }
   if ((header[hend++]=in2->get())!=0) error("missing HCOMP END");
-  assert(cend>=7 && cend<header.isize());
-  assert(hbegin==cend+128 && hbegin<header.isize());
-  assert(hend>hbegin && hend<header.isize());
-  assert(hsize==header[0]+256*header[1]);
-  assert(hsize==cend-2+hend-hbegin);
   allocx(rcode, rcode_size, 0);  // clear JIT code
   return cend+hend-hbegin;
 }
@@ -907,15 +888,11 @@ ZPAQL::~ZPAQL() {
 
 // Initialize machine state as HCOMP
 void ZPAQL::inith() {
-  assert(header.isize()>6);
-  assert(output==0);
-  assert(sha1==0);
   init(header[2], header[3]); // hh, hm
 }
 
 // Initialize machine state as PCOMP
 void ZPAQL::initp() {
-  assert(header.isize()>6);
   init(header[4], header[5]); // ph, pm
 }
 
@@ -940,7 +917,6 @@ double ZPAQL::memory() {
             +header.size();
   int cp=7;  // start of comp list
   for (int i=0; i<header[6]; ++i) {  // n
-    assert(cp<cend);
     double size=pow2(header[cp+1]); // sizebits
     switch(header[cp]) {
       case CM: mem+=4*size; break;
@@ -958,14 +934,6 @@ double ZPAQL::memory() {
 
 // Initialize machine state to run a program.
 void ZPAQL::init(int hbits, int mbits) {
-  assert(header.isize()>0);
-  assert(cend>=7);
-  assert(hbegin>=cend+128);
-  assert(hend>=hbegin);
-  assert(hend<header.isize()-130);
-  assert(header[0]+256*header[1]==cend-2+hend-hbegin);
-  assert(bufptr==0);
-  assert(outbuf.isize()>0);
   if (hbits>32) error("H too big");
   if (mbits>32) error("M too big");
   h.resize(1, hbits);
@@ -976,13 +944,6 @@ void ZPAQL::init(int hbits, int mbits) {
 
 // Run program on input by interpreting header
 void ZPAQL::run0(U32 input) {
-  assert(cend>6);
-  assert(hbegin>=cend+128);
-  assert(hend>=hbegin);
-  assert(hend<header.isize()-130);
-  assert(m.size()>0);
-  assert(h.size()>0);
-  assert(header[0]+256*header[1]==cend+hend-hbegin-2);
   pc=hbegin;
   a=input;
   while (execute()) ;
@@ -1655,12 +1616,6 @@ static const U8 stdt[712]={
 
 Predictor::Predictor(ZPAQL& zr):
     c8(1), hmap4(1), z(zr) {
-  assert(sizeof(U8)==1);
-  assert(sizeof(U16)==2);
-  assert(sizeof(U32)==4);
-  assert(sizeof(U64)==8);
-  assert(sizeof(short)==2);
-  assert(sizeof(int)==4);
   pcode=0;
   pcode_size=0;
   initTables=false;
@@ -1696,7 +1651,6 @@ void Predictor::init() {
     for (int i=0; i<712; ++i)
       for (int j=stdt[i]; j>0; --j)
         stretcht[k++]=i;
-    assert(k==32768);
     for (int i=0; i<16384; ++i)
       stretcht[i]=-stretcht[32767-i];
   }
@@ -1710,8 +1664,6 @@ void Predictor::init() {
   int n=z.header[6]; // hsize[0..1] hh hm ph pm n (comp)[n] END 0[128] (hcomp) END
   const U8* cp=&z.header[7];  // start of component list
   for (int i=0; i<n; ++i) {
-    assert(cp<&z.header[z.cend]);
-    assert(cp>&z.header[0] && cp<&z.header[z.header.isize()-8]);
     Component& cr=comp[i];
     switch(cp[0]) {
       case CONS:  // c
@@ -1756,7 +1708,6 @@ void Predictor::init() {
         if (cp[2]>=i) error("MIX j >= i");
         if (cp[3]<1 || cp[3]>i-cp[2]) error("MIX m not in 1..i-j");
         int m=cp[3];  // number of inputs
-        assert(m>=1);
         cr.c=(size_t(1)<<cp[1]); // size (number of contexts)
         cr.cm.resize(m, cp[1]);  // wt[size][m]
         for (size_t j=0; j<cr.cm.size(); ++j)
@@ -1784,24 +1735,16 @@ void Predictor::init() {
         break;
       default: error("unknown component type");
     }
-    assert(compsize[*cp]>0);
     cp+=compsize[*cp];
-    assert(cp>=&z.header[7] && cp<&z.header[z.cend]);
   }
 }
 
 // Return next bit prediction using interpreted COMP code
 int Predictor::predict0() {
-  assert(initTables);
-  assert(c8>=1 && c8<=255);
-
   // Predict next bit
   int n=z.header[6];
-  assert(n>0 && n<=255);
   const U8* cp=&z.header[7];
-  assert(cp[-1]==n);
   for (int i=0; i<n; ++i) {
-    assert(cp>&z.header[0] && cp<&z.header[z.header.isize()-8]);
     Component& cr=comp[i];
     switch(cp[0]) {
       case CONS:  // c
@@ -1811,19 +1754,12 @@ int Predictor::predict0() {
         p[i]=stretch(cr.cm(cr.cxt)>>17);
         break;
       case ICM: // sizebits
-        assert((hmap4&15)>0);
         if (c8==1 || (c8&0xf0)==16) cr.c=find(cr.ht, cp[1]+2, h[i]+16*c8);
         cr.cxt=cr.ht[cr.c+(hmap4&15)];
         p[i]=stretch(cr.cm(cr.cxt)>>8);
         break;
       case MATCH: // sizebits bufbits: a=len, b=offset, c=bit, cxt=bitpos,
                   //                   ht=buf, limit=pos
-        assert(cr.cm.size()==(size_t(1)<<cp[1]));
-        assert(cr.ht.size()==(size_t(1)<<cp[2]));
-        assert(cr.a<=255);
-        assert(cr.c==0 || cr.c==1);
-        assert(cr.cxt<8);
-        assert(cr.limit<cr.ht.size());
         if (cr.a==0) p[i]=0;
         else {
           cr.c=(cr.ht(cr.limit-cr.b)>>(7-cr.cxt))&1; // predicted bit
@@ -1836,20 +1772,15 @@ int Predictor::predict0() {
       case MIX2: { // sizebits j k rate mask
                    // c=size cm=wt[size] cxt=input
         cr.cxt=((h[i]+(c8&cp[5]))&(cr.c-1));
-        assert(cr.cxt<cr.a16.size());
         int w=cr.a16[cr.cxt];
-        assert(w>=0 && w<65536);
         p[i]=(w*p[cp[2]]+(65536-w)*p[cp[3]])>>16;
-        assert(p[i]>=-2048 && p[i]<2048);
       }
         break;
       case MIX: {  // sizebits j m rate mask
                    // c=size cm=wt[size][m] cxt=index of wt in cm
         int m=cp[3];
-        assert(m>=1 && m<=i);
         cr.cxt=h[i]+(c8&cp[5]);
         cr.cxt=(cr.cxt&(cr.c-1))*m; // pointer to row of weights
-        assert(cr.cxt<=cr.cm.size()-m);
         int* wt=(int*)&cr.cm[cr.cxt];
         p[i]=0;
         for (int j=0; j<m; ++j)
@@ -1858,7 +1789,6 @@ int Predictor::predict0() {
       }
         break;
       case ISSE: { // sizebits j -- c=hi, cxt=bh
-        assert((hmap4&15)>0);
         if (c8==1 || (c8&0xf0)==16)
           cr.c=find(cr.ht, cp[1]+2, h[i]+16*c8);
         cr.cxt=cr.ht[cr.c+(hmap4&15)];  // bit history
@@ -1873,7 +1803,6 @@ int Predictor::predict0() {
         if (pq>1983) pq=1983;
         int wt=pq&63;
         pq>>=6;
-        assert(pq>=0 && pq<=30);
         cr.cxt+=pq;
         p[i]=stretch(((cr.cm(cr.cxt)>>10)*(64-wt)+(cr.cm(cr.cxt+1)>>10)*wt)>>13);
         cr.cxt+=wt>>5;
@@ -1883,25 +1812,15 @@ int Predictor::predict0() {
         error("component predict not implemented");
     }
     cp+=compsize[cp[0]];
-    assert(cp<&z.header[z.cend]);
-    assert(p[i]>=-2048 && p[i]<2048);
   }
-  assert(cp[0]==NONE);
   return squash(p[n-1]);
 }
 
 // Update model with decoded bit y (0...1)
 void Predictor::update0(int y) {
-  assert(initTables);
-  assert(y==0 || y==1);
-  assert(c8>=1 && c8<=255);
-  assert(hmap4>=1 && hmap4<=511);
-
   // Update components
   const U8* cp=&z.header[7];
   int n=z.header[6];
-  assert(n>=1 && n<=255);
-  assert(cp[-1]==n);
   for (int i=0; i<n; ++i) {
     Component& cr=comp[i];
     switch(cp[0]) {
@@ -1920,12 +1839,6 @@ void Predictor::update0(int y) {
                   //   a=len, b=offset, c=bit, cm=index, cxt=bitpos
                   //   ht=buf, limit=pos
       {
-        assert(cr.a<=255);
-        assert(cr.c==0 || cr.c==1);
-        assert(cr.cxt<8);
-        assert(cr.cm.size()==(size_t(1)<<cp[1]));
-        assert(cr.ht.size()==(size_t(1)<<cp[2]));
-        assert(cr.limit<cr.ht.size());
         if (int(cr.c)!=y) cr.a=0;  // mismatch?
         cr.ht(cr.limit)+=cr.ht(cr.limit)+y;
         if (++cr.cxt==8) {
@@ -1948,8 +1861,6 @@ void Predictor::update0(int y) {
         break;
       case MIX2: { // sizebits j k rate mask
                    // cm=wt[size], cxt=input
-        assert(cr.a16.size()==cr.c);
-        assert(cr.cxt<cr.a16.size());
         int err=(y*32767-squash(p[i]))*cp[4]>>5;
         int w=cr.a16[cr.cxt];
         w+=(err*(p[cp[2]]-p[cp[3]])+(1<<12))>>13;
@@ -1961,9 +1872,6 @@ void Predictor::update0(int y) {
       case MIX: {   // sizebits j m rate mask
                     // cm=wt[size][m], cxt=input
         int m=cp[3];
-        assert(m>0 && m<=i);
-        assert(cr.cm.size()==m*cr.c);
-        assert(cr.cxt+m<=cr.cm.size());
         int err=(y*32767-squash(p[i]))*cp[4]>>4;
         int* wt=(int*)&cr.cm[cr.cxt];
         for (int j=0; j<m; ++j)
@@ -1971,7 +1879,6 @@ void Predictor::update0(int y) {
       }
         break;
       case ISSE: { // sizebits j  -- c=hi, cxt=bh
-        assert(cr.cxt==cr.ht[cr.c+(hmap4&15)]);
         int err=y*32767-squash(p[i]);
         int *wt=(int*)&cr.cm[cr.cxt*2];
         wt[0]=clamp512k(wt[0]+((err*p[cp[2]]+(1<<12))>>13));
@@ -1983,13 +1890,10 @@ void Predictor::update0(int y) {
         train(cr, y);
         break;
       default:
-        assert(0);
+        break;
     }
     cp+=compsize[cp[0]];
-    assert(cp>=&z.header[7] && cp<&z.header[z.cend] 
-           && cp<&z.header[z.header.isize()-8]);
   }
-  assert(cp[0]==NONE);
 
   // Save bit y in c8, hmap4
   c8+=c8+y;
@@ -2010,8 +1914,6 @@ void Predictor::update0(int y) {
 // collision detection. If not found after 3 adjacent tries, replace the
 // row with lowest element 1 as priority. Return index of row.
 size_t Predictor::find(Array<U8>& ht, int sizebits, U32 cxt) {
-  assert(initTables);
-  assert(ht.size()==size_t(16)<<sizebits);
   int chk=cxt>>sizebits&255;
   size_t h0=(cxt*16)&(ht.size()-16);
   if (ht[h0]==chk) return h0;
@@ -2042,13 +1944,8 @@ void Decoder::init() {
 
 // Return next bit of decoded input, which has 16 bit probability p of being 1
 int Decoder::decode(int p) {
-  assert(pr.isModeled());
-  assert(p>=0 && p<65536);
-  assert(high>low && low>0);
   if (curr<low || curr>high) error("archive corrupted");
-  assert(curr>=low && curr<=high);
   U32 mid=low+U32(((high-low)*U64(U32(p)))>>16);  // split range
-  assert(high>mid && mid>=low);
   int y;
   if (curr<=mid) y=1, high=mid;  // pick half
   else y=0, low=mid+1;
@@ -2133,7 +2030,6 @@ void PostProcessor::init(int h, int m) {
 // (PASS=0 | PROG=1 psize[0..1] pcomp[0..psize-1]) data... EOB=-1
 // Return state: 1=PASS, 2..4=loading PROG, 5=PROG loaded
 int PostProcessor::write(int c) {
-  assert(c>=-1 && c<=255);
   switch (state) {
     case 0:  // initial state
       if (c<0) error("Unexpected EOS");
@@ -2162,7 +2058,6 @@ int PostProcessor::write(int c) {
       break;
     case 4:  // PROG psize[0..1] pcomp[0...]
       if (c<0) error("Unexpected EOS");
-      assert(z.hend<z.header.isize());
       z.header[z.hend++]=c;  // one byte of pcomp
       if (z.hend-z.hbegin==hsize) {  // last byte of pcomp?
         hsize=z.cend-2+z.hend-z.hbegin;
@@ -2185,8 +2080,6 @@ int PostProcessor::write(int c) {
 // Find the start of a block and return true if found. Set memptr
 // to memory used.
 bool Decompresser::findBlock(double* memptr) {
-  assert(state==BLOCK);
-
   // Find start of block
   U32 h1=0x3D49B113, h2=0x29EB7F93, h3=0x2614BE13, h4=0x3828EB13;
   // Rolling hashes initialized to hash of first 13 bytes
@@ -2216,7 +2109,6 @@ bool Decompresser::findBlock(double* memptr) {
 // Read the start of a segment (1) or end of block code (255).
 // If a segment is found, write the filename and return true, else false.
 bool Decompresser::findFilename(Writer* filename) {
-  assert(state==FILENAME);
   int c=dec.get();
   if (c==1) {  // segment found
     while (true) {
@@ -2240,7 +2132,6 @@ bool Decompresser::findFilename(Writer* filename) {
 
 // Read the comment from the segment header
 void Decompresser::readComment(Writer* comment) {
-  assert(state==COMMENT);
   state=DATA;
   while (true) {
     int c=dec.get();
@@ -2253,14 +2144,11 @@ void Decompresser::readComment(Writer* comment) {
 
 // Decompress n bytes, or all if n < 0. Return false if done
 bool Decompresser::decompress(int n) {
-  assert(state==DATA);
   if (decode_state==SKIP) error("decompression after skipped segment");
-  assert(decode_state!=SKIP);
 
   // Initialize models to start decompressing block
   if (decode_state==FIRSTSEG) {
     dec.init();
-    assert(z.header.size()>5);
     pp.init(z.header[4], z.header[5]);
     decode_state=SEG;
   }
@@ -2286,8 +2174,6 @@ bool Decompresser::decompress(int n) {
 // 20 byte checksum into sha1string, else write 0 in first byte.
 // If sha1string is 0 then discard it.
 void Decompresser::readSegmentEnd(char* sha1string) {
-  assert(state==DATA || state==SEGEND);
-
   // Skip remaining data if any and get next byte
   int c=0;
   if (state==DATA) {
@@ -2340,12 +2226,7 @@ void Encoder::init() {
 
 // compress bit y having probability p/64K
 void Encoder::encode(int y, int p) {
-  assert(out);
-  assert(p>=0 && p<65536);
-  assert(y==0 || y==1);
-  assert(high>low && low>0);
   U32 mid=low+U32(((high-low)*U64(U32(p)))>>16);  // split range
-  assert(high>mid && mid>=low);
   if (y) high=mid; else low=mid+1; // pick half
   while ((high^low)<0x1000000) { // write identical leading bytes
     out->put(high>>24);  // same as low>>24
@@ -2357,16 +2238,13 @@ void Encoder::encode(int y, int p) {
 
 // compress byte c (0..255 or -1=EOS)
 void Encoder::compress(int c) {
-  assert(out);
   if (pr.isModeled()) {
     if (c==-1)
       encode(1, 0);
     else {
-      assert(c>=0 && c<=255);
       encode(0, 0);
       for (int i=7; i>=0; --i) {
         int p=pr.predict()*2+1;
-        assert(p>0 && p<65536);
         int y=c>>i&1;
         encode(y, p);
         pr.update(y);
@@ -2432,7 +2310,6 @@ const char* opcodelist[272]={
 // Advance in to start of next token. Tokens are delimited by white
 // space. Comments inclosed in ((nested) parenthsis) are skipped.
 void Compiler::next() {
-  assert(in);
   for (; *in; ++in) {
     if (*in=='\n') ++line;
     if (*in=='(') state+=1+(state<0);
@@ -2476,20 +2353,16 @@ void Compiler::syntaxError(const char* msg, const char* expected) {
 // Read a token, which must be in the NULL terminated list or else
 // exit with an error. If found, return its index.
 int Compiler::rtoken(const char* list[]) {
-  assert(in);
-  assert(list);
   next();
   for (int i=0; list[i]; ++i)
     if (matchToken(list[i]))
       return i;
   syntaxError("unexpected");
-  assert(0);
   return -1; // not reached
 }
 
 // Read a token which must be the specified value s
 void Compiler::rtoken(const char* s) {
-  assert(s);
   next();
   if (!matchToken(s)) syntaxError("expected", s);
 }
@@ -2542,17 +2415,13 @@ int Compiler::compile_comp(ZPAQL& z) {
       if (op==ELSE) op=JMP, operand=0;
       if (op==ELSEL) op=LJ, operand=operand2=0;
       int a=if_stack.pop();  // conditional jump target location
-      assert(a>comp_begin && a<int(z.hend));
       if (z.header[a-1]!=LJ) {  // IF, IFNOT
-        assert(z.header[a-1]==JT || z.header[a-1]==JF || z.header[a-1]==JMP);
         int j=z.hend-a+1+(op==LJ); // offset at IF
-        assert(j>=0);
         if (j>127) syntaxError("IF too big, try IFL, IFNOTL");
         z.header[a]=j;
       }
       else {  // IFL, IFNOTL
         int j=z.hend-comp_begin+2+(op==LJ);
-        assert(j>=0);
         z.header[a]=j&255;
         z.header[a+1]=(j>>8)&255;
       }
@@ -2560,16 +2429,12 @@ int Compiler::compile_comp(ZPAQL& z) {
     }
     else if (op==ENDIF) {
       int a=if_stack.pop();  // jump target address
-      assert(a>comp_begin && a<int(z.hend));
       int j=z.hend-a-1;  // jump offset
-      assert(j>=0);
       if (z.header[a-1]!=LJ) {
-        assert(z.header[a-1]==JT || z.header[a-1]==JF || z.header[a-1]==JMP);
         if (j>127) syntaxError("IF too big, try IFL, IFNOTL, ELSEL\n");
         z.header[a]=j;
       }
       else {
-        assert(a+1<int(z.hend));
         j=z.hend-comp_begin;
         z.header[a]=j&255;
         z.header[a+1]=(j>>8)&255;
@@ -2580,9 +2445,7 @@ int Compiler::compile_comp(ZPAQL& z) {
     }
     else if (op==WHILE || op==UNTIL || op==FOREVER) {
       int a=do_stack.pop();
-      assert(a>=comp_begin && a<int(z.hend));
       int j=a-z.hend-2;
-      assert(j<=-2);
       if (j>=-127) {  // backward short jump
         if (op==WHILE) op=JT;
         if (op==UNTIL) op=JF;
@@ -2591,7 +2454,6 @@ int Compiler::compile_comp(ZPAQL& z) {
       }
       else {  // backward long jump
         j=a-comp_begin;
-        assert(j>=0 && j<int(z.hend)-comp_begin);
         if (op==WHILE) {
           z.header[z.hend++]=(JF);
           z.header[z.hend++]=(3);
@@ -2699,7 +2561,6 @@ Compiler::Compiler(const char* in_, int* args_, ZPAQL& hz_, ZPAQL& pz_,
     // Compile PCOMP
     op=compile_comp(pz);
     int len=pz.cend-2+pz.hend-pz.hbegin;  // insert header size
-    assert(len>=0);
     pz.header[0]=len&255;
     pz.header[1]=len>>8;
     if (op!=END)
@@ -2714,7 +2575,6 @@ Compiler::Compiler(const char* in_, int* args_, ZPAQL& hz_, ZPAQL& pz_,
 // Write 13 byte start tag
 // "\x37\x6B\x53\x74\xA0\x31\x83\xD3\x8C\xB2\x28\xB0\xD3"
 void Compressor::writeTag() {
-  assert(state==INIT);
   enc.out->put(0x37);
   enc.out->put(0x6b);
   enc.out->put(0x53);
@@ -2779,11 +2639,9 @@ public:
 };
 
 void Compressor::startBlock(const char* hcomp) {
-  assert(state==INIT);
   MemoryReader m(hcomp);
   z.read(&m);
   pz.sha1=&sha1;
-  assert(z.header.isize()>6);
   enc.out->put('z');
   enc.out->put('P');
   enc.out->put('Q');
@@ -2794,10 +2652,8 @@ void Compressor::startBlock(const char* hcomp) {
 }
 
 void Compressor::startBlock(const char* config, int* args, Writer* pcomp_cmd) {
-  assert(state==INIT);
   Compiler(config, args, z, pz, pcomp_cmd);
   pz.sha1=&sha1;
-  assert(z.header.isize()>6);
   enc.out->put('z');
   enc.out->put('P');
   enc.out->put('Q');
@@ -2809,7 +2665,6 @@ void Compressor::startBlock(const char* config, int* args, Writer* pcomp_cmd) {
 
 // Write a segment header
 void Compressor::startSegment(const char* filename, const char* comment) {
-  assert(state==BLOCK1 || state==BLOCK2);
   enc.out->put(1);
   while (filename && *filename)
     enc.out->put(*filename++);
@@ -2827,16 +2682,12 @@ void Compressor::startSegment(const char* filename, const char* comment) {
 // if pcomp is 0 then get pcomp from pz.header
 void Compressor::postProcess(const char* pcomp, int len) {
   if (state==SEG2) return;
-  assert(state==SEG1);
   enc.init();
   if (!pcomp) {
     len=pz.hend-pz.hbegin;
     if (len>0) {
-      assert(pz.header.isize()>pz.hend);
-      assert(pz.hbegin>=0);
       pcomp=(const char*)&pz.header[pz.hbegin];
     }
-    assert(len>=0);
   }
   else if (len==0) {
     len=toU16(pcomp);
@@ -2860,7 +2711,6 @@ void Compressor::postProcess(const char* pcomp, int len) {
 bool Compressor::compress(int n) {
   if (state==SEG1)
     postProcess();
-  assert(state==SEG2);
 
   const int BUFSIZE=1<<14;
   char buf[BUFSIZE];  // input buffer
@@ -2887,7 +2737,6 @@ bool Compressor::compress(int n) {
 void Compressor::endSegment(const char* sha1string) {
   if (state==SEG1)
     postProcess();
-  assert(state==SEG2);
   enc.compress(-1);
   if (verify && pz.hend) {
     pz.run(-1);
@@ -2911,7 +2760,6 @@ void Compressor::endSegment(const char* sha1string) {
 char* Compressor::endSegmentChecksum(int64_t* size, bool dosha1) {
   if (state==SEG1)
     postProcess();
-  assert(state==SEG2);
   enc.compress(-1);
   if (verify && pz.hend) {
     pz.run(-1);
@@ -2938,7 +2786,6 @@ char* Compressor::endSegmentChecksum(int64_t* size, bool dosha1) {
 
 // End block
 void Compressor::endBlock() {
-  assert(state==BLOCK2);
   enc.out->put(255);
   state=INIT;
 }
@@ -3072,26 +2919,22 @@ void ZPAQL::run(U32 input) {
 #endif /* MAX */
 #define STACK_PUSH(_a, _b, _c, _d)\
   do {\
-    assert(ssize < STACK_SIZE);\
     stack[ssize].a = (_a), stack[ssize].b = (_b),\
     stack[ssize].c = (_c), stack[ssize++].d = (_d);\
   } while(0)
 #define STACK_PUSH5(_a, _b, _c, _d, _e)\
   do {\
-    assert(ssize < STACK_SIZE);\
     stack[ssize].a = (_a), stack[ssize].b = (_b),\
     stack[ssize].c = (_c), stack[ssize].d = (_d), stack[ssize++].e = (_e);\
   } while(0)
 #define STACK_POP(_a, _b, _c, _d)\
   do {\
-    assert(0 <= ssize);\
     if(ssize == 0) { return; }\
     (_a) = stack[--ssize].a, (_b) = stack[ssize].b,\
     (_c) = stack[ssize].c, (_d) = stack[ssize].d;\
   } while(0)
 #define STACK_POP5(_a, _b, _c, _d, _e)\
   do {\
-    assert(0 <= ssize);\
     if(ssize == 0) { return; }\
     (_a) = stack[--ssize].a, (_b) = stack[ssize].b,\
     (_c) = stack[ssize].c, (_d) = stack[ssize].d, (_e) = stack[ssize].e;\
@@ -4544,9 +4387,6 @@ construct_SA(const unsigned char *T, int *SA,
           i <= j;
           --j) {
         if(0 < (s = *j)) {
-          assert(T[s] == c1);
-          assert(((s + 1) < n) && (T[s] <= T[s + 1]));
-          assert(T[s - 1] <= T[s]);
           *j = ~s;
           c0 = T[--s];
           if((0 < s) && (T[s - 1] > c0)) { s = ~s; }
@@ -4554,10 +4394,8 @@ construct_SA(const unsigned char *T, int *SA,
             if(0 <= c2) { BUCKET_B(c2, c1) = k - SA; }
             k = SA + BUCKET_B(c2 = c0, c1);
           }
-          assert(k < j);
           *k-- = s;
         } else {
-          assert(((s == 0) && (T[s] == c1)) || (s < 0));
           *j = ~s;
         }
       }
@@ -4571,17 +4409,14 @@ construct_SA(const unsigned char *T, int *SA,
   /* Scan the suffix array from left to right. */
   for(i = SA, j = SA + n; i < j; ++i) {
     if(0 < (s = *i)) {
-      assert(T[s - 1] >= T[s]);
       c0 = T[--s];
       if((s == 0) || (T[s - 1] < c0)) { s = ~s; }
       if(c0 != c2) {
         BUCKET_A(c2) = k - SA;
         k = SA + BUCKET_A(c2 = c0);
       }
-      assert(i < k);
       *k++ = s;
     } else {
-      assert(s < 0);
       *i = ~s;
     }
   }
@@ -4608,9 +4443,6 @@ construct_BWT(const unsigned char *T, int *SA,
           i <= j;
           --j) {
         if(0 < (s = *j)) {
-          assert(T[s] == c1);
-          assert(((s + 1) < n) && (T[s] <= T[s + 1]));
-          assert(T[s - 1] <= T[s]);
           c0 = T[--s];
           *j = ~((int)c0);
           if((0 < s) && (T[s - 1] > c0)) { s = ~s; }
@@ -4618,7 +4450,6 @@ construct_BWT(const unsigned char *T, int *SA,
             if(0 <= c2) { BUCKET_B(c2, c1) = k - SA; }
             k = SA + BUCKET_B(c2 = c0, c1);
           }
-          assert(k < j);
           *k-- = s;
         } else if(s != 0) {
           *j = ~s;
@@ -4634,7 +4465,6 @@ construct_BWT(const unsigned char *T, int *SA,
   /* Scan the suffix array from left to right. */
   for(i = SA, j = SA + n, orig = SA; i < j; ++i) {
     if(0 < (s = *i)) {
-      assert(T[s - 1] >= T[s]);
       c0 = T[--s];
       *i = c0;
       if((0 < s) && (T[s - 1] < c0)) { s = ~((int)T[s - 1]); }
@@ -4642,7 +4472,6 @@ construct_BWT(const unsigned char *T, int *SA,
         BUCKET_A(c2) = k - SA;
         k = SA + BUCKET_A(c2 = c0);
       }
-      assert(i < k);
       *k++ = s;
     } else if(s != 0) {
       *i = ~s;
@@ -4729,8 +4558,6 @@ divbwt(const unsigned char *T, unsigned char *U, int *A, int n) {
 
 // Convert non-negative decimal number x to string of at least n digits
 std::string itos(int64_t x, int n=1) {
-  assert(x>=0);
-  assert(n>=0);
   std::string r;
   for (; x || n>0; x/=10, --n) r=std::string(1, '0'+x%10)+r;
   return r;
@@ -4799,21 +4626,18 @@ class LZBuffer: public libzpaq::Reader {
     bits|=x<<nbits;
     nbits+=k;
     while (nbits>7) {
-      assert(wpos<BUFSIZE);
       buf[wpos++]=bits, bits>>=8, nbits-=8;
     }
   }
 
   // write last byte
   void flush() {
-    assert(wpos<BUFSIZE);
     if (nbits>0) buf[wpos++]=bits;
     bits=nbits=0;
   }
 
   // write 1 byte
   void put(int c) {
-    assert(wpos<BUFSIZE);
     buf[wpos++]=c;
   }
 
@@ -4860,7 +4684,6 @@ int lg(unsigned x) {
   if (x>=65536) r=16, x>>=16;
   if (x>=256) r+=8, x>>=8;
   if (x>=16) r+=4, x>>=4;
-  assert(x>=0 && x<16);
   return
     "\x00\x01\x02\x02\x03\x03\x03\x03\x04\x04\x04\x04\x04\x04\x04\x04"[x]+r;
 }
@@ -4880,7 +4703,6 @@ int LZBuffer::read(char* p, int n) {
   if (nr>int(wpos-rpos)) nr=wpos-rpos;
   if (nr) memcpy(p, buf+rpos, nr);
   rpos+=nr;
-  assert(rpos<=wpos);
   if (rpos==wpos) rpos=wpos=0;
   return nr;
 }
@@ -4908,10 +4730,6 @@ LZBuffer::LZBuffer(StringBuffer& inbuf, int args[], const unsigned* sap):
     rb(args[0]>4 ? args[0]-4 : 0),
     bits(0), nbits(0), rpos(0), wpos(0),
     idx(0), sa(0), isa(0) {
-  assert(args[0]>=0);
-  assert(n<=(1u<<20<<args[0]));
-  assert(args[1]>=1 && args[1]<=7 && args[1]!=4);
-  assert(level>=1 && level<=3);
   if ((minMatch<4 && level==1) || (minMatch<1 && level==2))
     error("match length $3 too small");
 
@@ -4923,13 +4741,10 @@ LZBuffer::LZBuffer(StringBuffer& inbuf, int args[], const unsigned* sap):
     if (sap)
       sa=sap;
     else {
-      assert(ht.size()>=n);
-      assert(ht.size()>0);
       sa=&ht[0];
       if (n>0) divsufsort((const unsigned char*)in, (int*)sa, n);
     }
     if (level<3) {
-      assert(ht.size()>=(n*(sap==0))+(1u<<17<<args[0]));
       isa=&ht[n*(sap==0)];
     }
   }
@@ -4940,8 +4755,6 @@ void LZBuffer::fill() {
 
   // BWT
   if (level==3) {
-    assert(in || n==0);
-    assert(sa);
     for (; wpos<BUFSIZE && i<n+5; ++i) {
       if (i==0) put(n>0 ? in[n-1] : 255);
       else if (i>n) put(idx&255), idx>>=8;
@@ -4970,13 +4783,11 @@ void LZBuffer::fill() {
             isa[sa[j]&mask]=j;
       for (unsigned h=0; h<=lookahead; ++h) {
         unsigned q=isa[(h+i)&mask];  // location of h+i in SA
-        assert(q<n);
         if (sa[q]!=h+i) continue;
         for (int j=-1; j<=1; j+=2) {  // search backward and forward
           for (unsigned k=1; k<=bucket; ++k) {
             unsigned p;  // match to be tested
             if (q+j*k<n && (p=sa[q+j*k]-h)<i) {
-              assert(p<n);
               unsigned l, l1;  // length of match, leading literals
               for (l=h; i+l<n && l<maxMatch && in[p+l]==in[i+l]; ++l);
               for (l1=h; l1>0 && in[p+l1-1]==in[i+l1-1]; --l1);
@@ -5006,7 +4817,6 @@ void LZBuffer::fill() {
               if (l>=minMatch2+lookahead) {
                 int l1;  // length back from lookahead
                 for (l1=lookahead; l1>0 && in[p+l1-1]==in[i+l1-1]; --l1);
-                assert(l1>=0 && l1<=int(lookahead));
                 int score=int(l-l1)*8-lg(i-p)-8*(lit==0 && l1>0)-11;
                 if (score>bscore) blen=l, bp=p, blit=l1, bscore=score;
               }
@@ -5036,7 +4846,6 @@ void LZBuffer::fill() {
 
     // If match is long enough, then output any pending literals first,
     // and then the match. blen is the length of the match.
-    assert(i>=bp);
     const unsigned off=i-bp;  // offset
     if (off>0 && bscore>0
         && blen-blit>=minMatch+(level==2)*((off>=(1<<16))+(off>=(1<<24)))) {
@@ -5059,7 +4868,6 @@ void LZBuffer::fill() {
         if (i+minMatchBoth<n) {
           unsigned ih=((i*1234547)>>19)&bucket;
           const unsigned p=(i<<checkbits)|(in[i+3]&mask);
-          assert(ih<=bucket);
           if (minMatch2) {
             ht[h2^ih]=p;
             h2=(((h2*9)<<shift2)
@@ -5078,7 +4886,6 @@ void LZBuffer::fill() {
   }
 
   // Write pending literals at end of input
-  assert(i<=n);
   if (i==n) {
     write_literal(n, lit);
     flush();
@@ -5087,13 +4894,9 @@ void LZBuffer::fill() {
 
 // Write literal sequence in[i-lit..i-1], set lit=0
 void LZBuffer::write_literal(unsigned i, unsigned& lit) {
-  assert(lit>=0);
-  assert(i>=0 && i<=n);
-  assert(i>=lit);
   if (level==1) {
     if (lit<1) return;
     int ll=lg(lit);
-    assert(ll>=1 && ll<=24);
     putb(0, 2);
     --ll;
     while (--ll>=0) {
@@ -5104,7 +4907,6 @@ void LZBuffer::write_literal(unsigned i, unsigned& lit) {
     while (lit) putb(in[i-lit--], 8);
   }
   else {
-    assert(level==2);
     while (lit>0) {
       unsigned lit1=lit;
       if (lit1>64) lit1=64;
@@ -5120,15 +4922,9 @@ void LZBuffer::write_match(unsigned len, unsigned off) {
 
   // mm,mmm,n,ll,r,q[mmmmm-8] = match n*4+ll, offset ((q-1)<<rb)+r+1
   if (level==1) {
-    assert(len>=minMatch && len<=maxMatch);
-    assert(off>0);
-    assert(len>=4);
-    assert(rb>=0 && rb<=8);
     int ll=lg(len)-1;
-    assert(ll>=2);
     off+=(1<<rb)-1;
     int lo=lg(off)-1-rb;
-    assert(lo>=0 && lo<=23);
     putb((lo+8)>>3, 2);// mm
     putb(lo&7, 3);     // mmm
     while (--ll>=2) {  // n
@@ -5143,14 +4939,10 @@ void LZBuffer::write_match(unsigned len, unsigned off) {
 
   // x[2]:len[6] off[x-1] 
   else {
-    assert(level==2);
-    assert(minMatch>=1 && minMatch<=64);
     --off;
     while (len>0) {  // Split long matches to len1=minMatch..minMatch+63
       const unsigned len1=len>minMatch*2+63 ? minMatch+63 :
           len>minMatch+63 ? len-minMatch : len;
-      assert(wpos<BUFSIZE-5);
-      assert(len1>=minMatch && len1<minMatch+64);
       if (off<(1<<16)) {
         put(64+len1-minMatch);
         put(off>>8);
@@ -5177,9 +4969,7 @@ void LZBuffer::write_match(unsigned len, unsigned off) {
 // Generate a config file from the method argument with syntax:
 // {0|x|s|i}[N1[,N2]...][{ciamtswf<cfg>}[N1[,N2]]...]...
 std::string makeConfig(const char* method, int args[]) {
-  assert(method);
   const char type=method[0];
-  assert(type=='x' || type=='s' || type=='0' || type=='i');
 
   // Read "{x|s|i|0}N1,N2...N9" into args[0..8] ($1..$9)
   args[0]=0;  // log block size in MiB
@@ -5762,7 +5552,6 @@ std::string makeConfig(const char* method, int args[]) {
 
     // i: ISSE chain with order increasing by N1,N2...
     if (v[0]=='i' && ncomp>0) {
-      assert(sb>=5);
       hcomp+="d= "+itos(ncomp-1)+" b=c a=*d d++\n";
       for (unsigned i=1; i<v.size() && ncomp<254; ++i) {
         for (int j=0; j<v[i]%10; ++j) {
@@ -5834,14 +5623,9 @@ std::string makeConfig(const char* method, int args[]) {
 // is not 's'). Write the generated method to methodOut if not 0.
 void compressBlock(StringBuffer* in, Writer* out, const char* method_,
                    const char* filename, const char* comment, bool dosha1) {
-  assert(in);
-  assert(out);
-  assert(method_);
-  assert(method_[0]);
   std::string method=method_;
   const unsigned n=in->size();  // input size
   const int arg0=MAX(lg(n+4095)-20, 0);  // block size
-  assert((1u<<(arg0+20))>=n+4096);
 
   // Get type from method "LB,R,t" where L is level 0..5, B is block
   // size 0..11, R is redundancy 0..255, t = 0..3 = binary, text, exe, both.
@@ -5867,7 +5651,6 @@ void compressBlock(StringBuffer* in, Writer* out, const char* method_,
   // Expand default methods
   if (isdigit(method[0])) {
     const int level=method[0]-'0';
-    assert(level>=0 && level<=9);
 
     // build models
     const int doe8=(type&2)*2;
@@ -5982,7 +5765,6 @@ void compressBlock(StringBuffer* in, Writer* out, const char* method_,
   std::string config;
   int args[9]={0};
   config=makeConfig(method.c_str(), args);
-  assert(n<=(0x100000u<<args[0])-4096);
   libzpaq::Compressor co;
   co.setOutput(out);
   StringBuffer pcomp_cmd;
