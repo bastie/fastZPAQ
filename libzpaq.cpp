@@ -55,7 +55,7 @@ void Writer::write(const char* buf, int n) {
 // allocated memory first. If newsize is 0 then free only.
 // Call error in case of failure. If NOJIT, ignore newsize
 // and set p=0, n=0 without allocating memory.
-void allocx(U8* &p, int &n, int newsize) {
+void allocx(U8* &p, int &n) {
   p=0;
   n=0;
 }
@@ -856,7 +856,7 @@ int ZPAQL::read(Reader* in2) {
     header[hend++]=op;
   }
   if ((header[hend++]=in2->get())!=0) error("missing HCOMP END");
-  allocx(rcode, rcode_size, 0);  // clear JIT code
+  allocx(rcode, rcode_size);  // clear JIT code
   return cend+hend-hbegin;
 }
 
@@ -868,7 +868,7 @@ void ZPAQL::clear() {
   h.resize(0);
   m.resize(0);
   r.resize(0);
-  allocx(rcode, rcode_size, 0);
+  allocx(rcode, rcode_size);
 }
 
 // Constructor
@@ -883,7 +883,7 @@ ZPAQL::ZPAQL() {
 }
 
 ZPAQL::~ZPAQL() {
-  allocx(rcode, rcode_size, 0);
+  allocx(rcode, rcode_size);
 }
 
 // Initialize machine state as HCOMP
@@ -1622,14 +1622,14 @@ Predictor::Predictor(ZPAQL& zr):
 }
 
 Predictor::~Predictor() {
-  allocx(pcode, pcode_size, 0);  // free executable memory
+  allocx(pcode, pcode_size);  // free executable memory
 }
 
 // Initialize the predictor with a new model in z
 void Predictor::init() {
 
   // Clear old JIT code if any
-  allocx(pcode, pcode_size, 0);
+  allocx(pcode, pcode_size);
 
   // Initialize context hash function
   z.inith();
