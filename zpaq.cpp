@@ -17,45 +17,12 @@ compression levels, deduplication, AES-256 encryption, and multi-threading
 using an open, self-describing format for backward and forward
 compatibility in Windows and Linux. See zpaq.pod for usage.
 
-TO COMPILE:
-
 This program needs libzpaq from http://mattmahoney.net/zpaq/
-Recommended compile for Windows with MinGW:
-
-  g++ -O3 zpaq.cpp libzpaq.cpp -o zpaq
-
-With Visual C++:
-
-  cl /O2 /EHsc zpaq.cpp libzpaq.cpp advapi32.lib
-
-For Linux:
-
-  g++ -O3 -Dunix zpaq.cpp libzpaq.cpp -pthread -o zpaq
-
-For BSD or OS/X
-
-  g++ -O3 -Dunix -DBSD zpaq.cpp libzpaq.cpp -pthread -o zpaq
-
-Possible options:
-
-  -DDEBUG    Enable run time checks and help screen for undocumented options.
-  -DNOJIT    Don't assume x86 with SSE2 for libzpaq. Slower (disables JIT).
-  -Dunix     Not Windows. Sometimes automatic in Linux. Needed for Mac OS/X.
-  -DBSD      For BSD or OS/X.
-  -DPTHREAD  Use Pthreads instead of Windows threads. Requires pthreadGC2.dll
-             or pthreadVC2.dll from http://sourceware.org/pthreads-win32/
-  -Dunixtest To make -Dunix work in Windows with MinGW.
-  -fopenmp   Parallel divsufsort (faster, implies -pthread, broken in MinGW).
-  -pthread   Required in Linux, implied by -fopenmp.
-  -O3 or /O2 Optimize (faster).
-  -o         Name of output executable.
-  /EHsc      Enable exception handing in VC++ (required).
-  advapi32.lib  Required for libzpaq in VC++.
 
 */
 #define _FILE_OFFSET_BITS 64  // In Linux make sizeof(off_t) == 8
 #ifndef UNICODE
-#define UNICODE  // For Windows
+#define UNICODE
 #endif
 #include "libzpaq.h"
 #include <stdio.h>
@@ -71,18 +38,8 @@ Possible options:
 #include <stdexcept>
 #include <fcntl.h>
 
-#ifndef DEBUG
-#define NDEBUG 1
-#endif
 #include <assert.h>
 
-#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
-#ifndef unix
-#define unix 1
-#endif
-#endif
-#ifdef unix
-#define PTHREAD 1
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -91,24 +48,7 @@ Possible options:
 #include <dirent.h>
 #include <utime.h>
 #include <errno.h>
-#ifdef BSD
 #include <sys/sysctl.h>
-#endif
-
-#else  // Assume Windows
-#endif
-
-// For testing -Dunix in Windows
-#ifdef unixtest
-#define lstat(a,b) stat(a,b)
-#define mkdir(a,b) mkdir(a)
-#ifndef fseeko
-#define fseeko(a,b,c) fseeko64(a,b,c)
-#endif
-#ifndef ftello
-#define ftello(a) ftello64(a)
-#endif
-#endif
 
 using std::string;
 using std::vector;
@@ -147,7 +87,6 @@ using libzpaq::error;
 // destroy_mutex(mutex);   // deallocate resources used by mutex
 // sem.destroy();          // deallocate resources used by semaphore
 
-#ifdef PTHREAD
 #include <pthread.h>
 typedef void* ThreadReturn;                                // job return type
 typedef pthread_t ThreadID;                                // job ID type
@@ -198,35 +137,22 @@ private:
   int sem;  // semaphore count
 };
 
-#else  // Windows
-#endif
-
 // Global variables
 int64_t global_start=0;  // set to mtime() at start of main()
 
-// In Windows, convert 16-bit wide string to UTF-8 and \ to /
-#ifndef unix
-
-#endif
 
 // Print a UTF-8 string to f (stdout, stderr) so it displays properly
 void printUTF8(const char* s, FILE* f=stdout) {
   assert(f);
   assert(s);
-#ifdef unix
   fprintf(f, "%s", s);
-#else
-#endif
 }
 
 // Return relative time in milliseconds
 int64_t mtime() {
-#ifdef unix
   timeval tv;
   gettimeofday(&tv, 0);
   return tv.tv_sec*1000LL+tv.tv_usec/1000;
-#else
-#endif
 }
 
 // Convert 64 bit decimal YYYYMMDDHHMMSS to "YYYY-MM-DD HH:MM:SS"
@@ -303,8 +229,7 @@ time_t unix_time(int64_t date) {
 
 /////////////////////////////// File //////////////////////////////////
 
-// Windows/Linux compatible file type
-#ifdef unix
+// Linux compatible file type
 typedef FILE* FP;
 const FP FPNULL=NULL;
 const char* const RB="rb";
@@ -312,43 +237,28 @@ const char* const WB="wb";
 const char* const RBPLUS="rb+";
 const char* const WBPLUS="wb+";
 
-#else // Windows
-#endif
-
 // Return true if a file or directory (UTF-8 without trailing /) exists.
 bool exists(string filename) {
   int len=filename.size();
   if (len<1) return false;
   if (filename[len-1]=='/') filename=filename.substr(0, len-1);
-#ifdef unix
   struct stat sb;
   return !lstat(filename.c_str(), &sb);
-#else
-#endif
 }
 
 // Delete a file, return true if successful
 bool delete_file(const char* filename) {
-#ifdef unix
   return remove(filename)==0;
-#else
-#endif
 }
-
-#ifdef unix
 
 // Print last error message
 void printerr(const char* filename) {
   perror(filename);
 }
 
-#else
-#endif
-
 // Close fp if open. Set date and attributes unless 0
 void close(const char* filename, int64_t date, int64_t attr, FP fp=FPNULL) {
   assert(filename);
-#ifdef unix
   if (fp!=FPNULL) fclose(fp);
   if (date>0) {
     struct utimbuf ub;
@@ -358,8 +268,6 @@ void close(const char* filename, int64_t date, int64_t attr, FP fp=FPNULL) {
   }
   if ((attr&255)=='u')
     chmod(filename, attr>>8);
-#else
-#endif
 }
 
 // Print file open error and throw exception
@@ -375,10 +283,7 @@ void makepath(string path, int64_t date=0, int64_t attr=0) {
   for (unsigned i=0; i<path.size(); ++i) {
     if (path[i]=='\\' || path[i]=='/') {
       path[i]=0;
-#ifdef unix
       mkdir(path.c_str(), 0777);
-#else
-#endif
       path[i]='/';
     }
   }
@@ -389,9 +294,6 @@ void makepath(string path, int64_t date=0, int64_t attr=0) {
     filename=filename.substr(0, filename.size()-1);  // remove trailing slash
   close(filename.c_str(), date, attr);
 }
-
-#ifndef unix
-#endif
 
 /////////////////////////////// Archive ///////////////////////////////
 
@@ -646,36 +548,10 @@ OutputArchive::OutputArchive(const char* filename, const char* password,
 // Guess number of cores. In 32 bit mode, max is 2.
 int numberOfProcessors() {
   int rc=0;  // result
-#ifdef unix
-#ifdef BSD  // BSD or Mac OS/X
   size_t rclen=sizeof(rc);
   int mib[2]={CTL_HW, HW_NCPU};
   if (sysctl(mib, 2, &rc, &rclen, 0, 0)!=0)
     perror("sysctl");
-
-#else  // Linux
-  // Count lines of the form "processor\t: %d\n" in /proc/cpuinfo
-  // where %d is 0, 1, 2,..., rc-1
-  FILE *in=fopen("/proc/cpuinfo", "r");
-  if (!in) return 1;
-  std::string s;
-  int c;
-  while ((c=getc(in))!=EOF) {
-    if (c>='A' && c<='Z') c+='a'-'A';  // convert to lowercase
-    if (c>' ') s+=c;  // remove white space
-    if (c=='\n') {  // end of line?
-      if (s.size()>10 && s.substr(0, 10)=="processor:") {
-        c=atoi(s.c_str()+10);
-        if (c==rc) ++rc;
-      }
-      s="";
-    }
-  }
-  fclose(in);
-#endif
-#else
-
-#endif
   if (rc<1) rc=1;
   if (sizeof(char*)==4 && rc>2) rc=2;
   return rc;
@@ -694,8 +570,6 @@ struct StringWriter: public libzpaq::Writer {
 
 // In Windows convert upper case to lower case.
 inline int tolowerW(int c) {
-#ifndef unix
-#endif
   return c;
 }
 
@@ -798,9 +672,6 @@ struct VER {
   VER() {memset(this, 0, sizeof(*this));}
 };
 
-// Windows API functions not in Windows XP to be dynamically loaded
-#ifndef unix
-#endif
 
 class CompressJob;
 
@@ -834,6 +705,7 @@ private:
   int summary;              // summary option if > 0, detailed if -1
   bool dotest;              // -test option
   int threads;              // default is number of cores
+  bool treadsCountAutomatic; // is set if no command line argument incomming
   vector<string> tofiles;   // -to option
   int64_t date;             // now as decimal YYYYMMDDHHMMSS (UT)
   int64_t version;          // version number or 14 digit date
@@ -892,33 +764,12 @@ void Jidac::usage() {
 "  -sN -summary N  List: show top N sorted by size. -1: show frag IDs.\n"
 "                  Add/Extract: if N > 0 show brief progress.\n"
 "  -test           Extract: verify but do not write files.\n"
-"  -tN -threads N  Use N threads (default: 0 = %d cores).\n"
+"  -tN -threads N  Use N threads (default: 0 = auto).\n"
 "  -to out...      Rename files... to out... or all to out/all.\n"
 "  -until N        Roll back archive to N'th update or -N from end.\n"
 "  -until %s  Set date, roll back (UT, default time: 235959).\n"
-#ifndef NDEBUG
-"Advanced options:\n"
-"  -fragment N     Use 2^N KiB average fragment size (default: 6).\n"
-"  -mNB -method NB Use 2^B MiB blocks (0..11, default: 04, 14, 26..56).\n"
-"  -method {xs}B[,N2]...[{ciawmst}[N1[,N2]...]]...  Advanced:\n"
-"  x=journaling (default). s=streaming (no dedupe).\n"
-"    N2: 0=no pre/post. 1,2=packed,byte LZ77. 3=BWT. 4..7=0..3 with E8E9.\n"
-"    N3=LZ77 min match. N4=longer match to try first (0=none). 2^N5=search\n"
-"    depth. 2^N6=hash table size (N6=B+21: suffix array). N7=lookahead.\n"
-"    Context modeling defaults shown below:\n"
-"  c0,0,0: context model. N1: 0=ICM, 1..256=CM max count. 1000..1256 halves\n"
-"    memory. N2: 1..255=offset mod N2, 1000..1255=offset from N2-1000 byte.\n"
-"    N3...: order 0... context masks (0..255). 256..511=mask+byte LZ77\n"
-"    parse state, >1000: gap of N3-1000 zeros.\n"
-"  i: ISSE chain. N1=context order. N2...=order increment.\n"
-"  a24,0,0: MATCH: N1=hash multiplier. N2=halve buffer. N3=halve hash tab.\n"
-"  w1,65,26,223,20,0: Order 0..N1-1 word ISSE chain. A word is bytes\n"
-"    N2..N2+N3-1 ANDed with N4, hash mulitpiler N5, memory halved by N6.\n"
-"  m8,24: MIX all previous models, N1 context bits, learning rate N2.\n"
-"  s8,32,255: SSE last model. N1 context bits, count range N2..N3.\n"
-"  t8,24: MIX2 last 2 models, N1 context bits, learning rate N2.\n"
-#endif
-  , threads, dateToString(date).c_str());
+
+  , dateToString(date).c_str());
   exit(1);
 }
 
@@ -928,8 +779,6 @@ void Jidac::usage() {
 string append_path(string a, string b) {
   int na=a.size();
   int nb=b.size();
-#ifndef unix
-#endif
   if (nb>0 && b[0]=='/') b=b.substr(1);
   if (na>0 && a[na-1]=='/') a=a.substr(0, na-1);
   return a+"/"+b;
@@ -1101,7 +950,22 @@ int Jidac::doCommand(int argc, const char** argv) {
   }
 
   // Set threads
-  if (threads<1) threads=numberOfProcessors();
+    // BASTIE: HACK for AMP vs. SMP
+    if (threads<1) {
+        threads=numberOfProcessors();
+        /*
+         with symetric multiprocessing all cores have same performance
+         (symetric cores) f.e. in Intel-based Mac
+         => it is not false to use all processors in the same way
+         with asymetric cores it is better to let the OS the master of
+         threads and use more smaller thread to do the workload
+         */
+        threads= threads * 24; // 120-300 with good results on MacBook pro 2023 14" max
+        treadsCountAutomatic = true;
+    }
+    else {
+        treadsCountAutomatic = false;
+    }
 
   // Test date
   if (now==-1 || date<19000000000000LL || date>30000000000000LL)
@@ -1115,10 +979,6 @@ int Jidac::doCommand(int argc, const char** argv) {
     version+=jidac.ver.size()-1;
     printf("Version %1.0f\n", version+.0);
   }
-
-  // Load dynamic functions in Windows Vista and later
-#ifndef unix
-#endif
 
   // Execute command
   if (command=='a' && files.size()>0) return add();
@@ -1486,8 +1346,6 @@ void Jidac::scandir(string filename) {
     if (ispath(notfiles[i].c_str(), filename.c_str()))
       return;
 
-#ifdef unix
-
   // Add regular files and directories
   while (filename.size()>1 && filename[filename.size()-1]=='/')
     filename=filename.substr(0, filename.size()-1);  // remove trailing /
@@ -1519,9 +1377,6 @@ void Jidac::scandir(string filename) {
   }
   else
     perror(filename.c_str());
-
-#else  // Windows: expand wildcards in filename
-#endif
 }
 
 // Add external file and its date, size, and attributes to dt
@@ -1983,10 +1838,18 @@ int Jidac::add() {
   vector<ThreadID> tid(threads*2-1);
   ThreadID wid;
   CompressJob job(threads, tid.size(), &out);
-  printf(
-      "Adding %1.6f MB in %d files -method %s -threads %d at %s.\n",
-      total_size/1000000.0, int(vf.size()), method.c_str(), threads,
-      dateToString(date).c_str());
+    if (treadsCountAutomatic) {
+        printf(
+               "Adding %1.6f MB in %d files -method %s at %s.\n",
+               total_size/1000000.0, int(vf.size()), method.c_str(),
+               dateToString(date).c_str());
+    }
+    else {
+        printf(
+               "Adding %1.6f MB in %d files -method %s -threads %d at %s.\n",
+               total_size/1000000.0, int(vf.size()), method.c_str(), threads,
+               dateToString(date).c_str());
+    }
   for (unsigned i=0; i<tid.size(); ++i) run(tid[i], compressThread, &job);
   run(wid, writeThread, &job);
 
@@ -2702,8 +2565,6 @@ ThreadReturn decompressThread(void* arg) {
                 printerr(filename.c_str());
                 release(job.mutex);
               }
-#ifndef unix
-#endif
             }
           }
           else if (!job.jd.dotest)
@@ -3417,11 +3278,7 @@ int Jidac::list() {
 
 /////////////////////////////// main //////////////////////////////////
 
-// Convert argv to UTF-8 and replace \ with /
-#ifdef unix
 int main(int argc, const char** argv) {
-#else
-#endif
 
   global_start=mtime();  // get start time
   int errorcode=0;

@@ -1,6 +1,4 @@
 CXX=g++
-CPPFLAGS+=-Dunix
-CPPFLAGS+=-DNOJIT
 CXXFLAGS=-Ofast -mcpu=apple-m1
 PREFIX=/usr/local
 BINDIR=$(PREFIX)/bin

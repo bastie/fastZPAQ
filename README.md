@@ -1,7 +1,7 @@
 # ZPAQ
 
 zpaq is a journaling archiver optimized for user-level incremental
-backup of directory trees in Windows, MacOS/X and \*nix. It supports AES-256
+backup of directory trees in MacOS/X. It supports AES-256
 encryption, 5 multi-threaded compression levels, and content-aware
 file fragment level deduplication. For backups it adds only files
 whose date has changed, and keeps both old and new versions. You can roll
@@ -23,7 +23,6 @@ versions of the program. Contents:
 
 Original versions of this software can be found at
 http://mattmahoney.net/dc/zpaq.html
-Please report bugs to Matt Mahoney at mattmahoneyfl@gmail.com
 
 Code from divsufsort.c is embedded in libzpaq.cpp.
 divsufsort.c is (C) 2003-2008 Yuta Mori, MIT license (see source code).
@@ -38,24 +37,7 @@ type "zpaq" with no arguments. See zpaq.pod for details.
 
 You can use "make" to compile for Mac OS/X or compile like this:
 
-  ```g++ -O3 -march=apple-m1 -DNOJIT -Dunix zpaq.cpp libzpaq.cpp -pthread -o zpaq```
-
-To compile for non x86 or x86-64 hardware use option -DNOJIT
-
-Options have the following meanings:
-
-    -Dunix   = select Unix or Linux target in zpaq and libzpaq.
-    -DDEBUG  = turn on run time checks.
-    -DNOJIT  = turn off run time optimization of ZPAQL to 32 or 64 bit x86
-               in libzpaq. Use this for a ARM processor.
-    -pthread = link to pthread library (required in unix/Linux).
-
-General options:
-
-    -O3      = optimize for speed.
-    -s       = strip debugging symbols. (Some compilers ignore this).
-    -static  = use this if you plan to run the program on a different
-                   machine than you compiled it on. Makes the executable bigger.
+  ```g++ -O3 -march=apple-m1 zpaq.cpp libzpaq.cpp -o zpaq```
 
 ## Documentation
 
