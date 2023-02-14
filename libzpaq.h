@@ -832,10 +832,6 @@ Use at your own risk.
 #ifndef LIBZPAQ_H
 #define LIBZPAQ_H
 
-#ifndef DEBUG
-#define NDEBUG 1
-#endif
-#include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
