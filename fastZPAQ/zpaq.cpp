@@ -185,19 +185,19 @@ int64_t decimal_time(time_t tt) {
   const int minute=t/60%60;
   const int hour=t/3600%24;
   t/=86400;  // days since Jan 1 1970
-  const int term=t/1461;  // 4 year terms since 1970
+  const int term=(int)(t/1461);  // 4 year terms since 1970
   t%=1461;
   t+=(t>=59);  // insert Feb 29 on non leap years
   t+=(t>=425);
   t+=(t>=1157);
-  const int year=term*4+t/366+1970;  // actual year
+  const int year=int(term*4+t/366+1970);  // actual year
   t%=366;
   t+=(t>=60)*2;  // make Feb. 31 days
   t+=(t>=123);   // insert Apr 31
   t+=(t>=185);   // insert June 31
   t+=(t>=278);   // insert Sept 31
   t+=(t>=340);   // insert Nov 31
-  const int month=t/31+1;
+  const int month=(int)(t/31+1);
   const int day=t%31+1;
   return year*10000000000LL+month*100000000+day*1000000
          +hour*10000+minute*100+second;
@@ -229,7 +229,7 @@ const char* const WBPLUS="wb+";
 
 // Return true if a file or directory (UTF-8 without trailing /) exists.
 bool exists(string filename) {
-  int len=filename.size();
+  int len=(int)filename.size();
   if (len<1) return false;
   if (filename[len-1]=='/') filename=filename.substr(0, len-1);
   struct stat sb;
@@ -295,7 +295,7 @@ string itos(int64_t x, int n=1) {
 
 // Replace * and ? in fn with part or digits of part
 string subpart(string fn, int part) {
-  for (int j=fn.size()-1; j>=0; --j) {
+  for (int j=(int)(fn.size()-1); j>=0; --j) {
     if (fn[j]=='?')
       fn[j]='0'+part%10, part/=10;
     else if (fn[j]=='*')
@@ -337,10 +337,10 @@ public:
   // Read up to len bytes into obuf at current offset. Return 0..len bytes
   // actually read. 0 indicates EOF.
   int read(char* obuf, int len) {
-    int nr=fread(obuf, 1, len, fp);
+    int nr=(int)fread(obuf, 1, len, fp);
     if (nr==0) {
       seek(0, SEEK_CUR);
-      nr=fread(obuf, 1, len, fp);
+      nr=(int)fread(obuf, 1, len, fp);
     }
     if (nr==0) return 0;
     if (aes) aes->encrypt(obuf, nr, off);
@@ -759,8 +759,8 @@ void Jidac::usage() {
 // in Windows, any drive letter in b the : is removed and there
 // is a "/" after.
 string append_path(string a, string b) {
-  int na=a.size();
-  int nb=b.size();
+  int na=(int)a.size();
+  int nb=(int)b.size();
   if (nb>0 && b[0]=='/') b=b.substr(1);
   if (na>0 && a[na-1]=='/') a=a.substr(0, na-1);
   return a+"/"+b;
@@ -771,9 +771,9 @@ string Jidac::rename(string name) {
   if (files.size()==0 && tofiles.size()>0)  // append prefix tofiles[0]
     name=append_path(tofiles[0], name);
   else {  // replace prefix files[i] with tofiles[i]
-    const int n=name.size();
+    const int n=(int)name.size();
     for (unsigned i=0; i<files.size() && i<tofiles.size(); ++i) {
-      const int fn=files[i].size();
+      const int fn=(int)files[i].size();
       if (fn<=n && files[i]==name.substr(0, fn))
         return tofiles[i]+name.substr(fn);
     }
@@ -1105,7 +1105,7 @@ int64_t Jidac::read_archive(const char* arc, int *errors) {
                 dcsize+=jmp;
                 if (jmp) in.seek(data_offset+jmp, SEEK_SET);
                 ver.push_back(VER());
-                ver.back().firstFragment=ht.size();
+                ver.back().firstFragment=(int)ht.size();
                 ver.back().offset=block_offset;
                 ver.back().data_offset=data_offset;
                 ver.back().date=ver.back().lastdate=fdate;
@@ -1128,7 +1128,7 @@ int64_t Jidac::read_archive(const char* arc, int *errors) {
             else if (filename.s[17]=='h') {
               if (fdate>ver.back().lastdate) ver.back().lastdate=fdate;
               if (os.size()%24!=4) error("bad h block size");
-              const unsigned n=(os.size()-4)/24;
+              const unsigned n=(int)((os.size()-4)/24);
               if (num<1 || num+n>0xffffffff) error("bad h fragment");
               const char* s=os.c_str();
               const unsigned bsize=btoi(s);
@@ -1139,12 +1139,12 @@ int64_t Jidac::read_archive(const char* arc, int *errors) {
                   "Unordered fragment tables: expected >= %d found %1.0f\n",
                   int(ht.size()), double(num));
               }
-              for (unsigned i=0; i<n; ++i) {
+              for (unsigned int i=0; i<n; ++i) {
                 if (i==0) {
-                  block.push_back(Block(num, data_offset));
+                  block.push_back(Block((int)num, data_offset));
                   block.back().usize=8;
                   block.back().bsize=bsize;
-                  block.back().frags=os.size()/24;
+                  block.back().frags=(int)(os.size()/24);
                 }
                 while (int64_t(ht.size())<=num+i) ht.push_back(HT());
                 memcpy(ht[num+i].sha1, s, 20);
@@ -1213,7 +1213,7 @@ int64_t Jidac::read_archive(const char* arc, int *errors) {
                 goto endblock;
               }
               ver.push_back(VER());
-              ver.back().firstFragment=ht.size();
+              ver.back().firstFragment=(int)ht.size();
               ver.back().offset=block_offset;
               ver.back().csize=-1;
             }
@@ -1232,10 +1232,10 @@ int64_t Jidac::read_archive(const char* arc, int *errors) {
                 dtr.ptr.resize(0);
                 ++ver.back().updates;
               }
-              dtr.ptr.push_back(ht.size());
+              dtr.ptr.push_back((int)ht.size());
             }
             if (segs==0 || block.size()==0)
-              block.push_back(Block(ht.size(), block_offset));
+              block.push_back(Block((int)ht.size(), block_offset));
             ht.push_back(HT(sha1result+1, -1));
           }  // end else streaming
           ++segs;
@@ -1537,7 +1537,7 @@ ThreadReturn writeThread(void* arg) {
 
       // Write to archive
       cj.state=CJ::WRITING;
-      job.csize.push_back(cj.out.size());
+      job.csize.push_back((int)cj.out.size());
       if (job.out && cj.out.size()>0) {
         release(job.mutex);
         const char* p=cj.out.c_str();
@@ -1548,7 +1548,7 @@ ThreadReturn writeThread(void* arg) {
           p+=N;
           n-=N;
         }
-        job.out->write(p, n);
+        job.out->write(p, (int)n);
         lock(job.mutex);
       }
       cj.out.resize(0);
@@ -1674,7 +1674,7 @@ int Jidac::add() {
     if (version!=DEFAULT_VERSION) error("cannot truncate with an index");
     offset=header_pos+dhsize;
     header_pos=32*(password && offset==0);
-    arcname=subpart(archive, ver.size());
+    arcname=subpart(archive, (int)ver.size());
     if (exists(arcname.c_str())) {
       printUTF8(arcname.c_str(), stderr);
       fprintf(stderr, ": archive exists\n");
@@ -1806,7 +1806,7 @@ int Jidac::add() {
   // Start compress and write jobs
   vector<ThreadID> tid(threads*2-1);
   ThreadID wid;
-  CompressJob job(threads, tid.size(), &out);
+  CompressJob job(threads, (int)tid.size(), &out);
     if (treadsCountAutomatic) {
         printf(
                "Adding %1.6f MB in %d files -method %s at %s.\n",
@@ -1848,7 +1848,7 @@ int Jidac::add() {
       const int BUFSIZE=4096;
       char buf[BUFSIZE];
       while (true) {
-        int r=fread(buf, 1, BUFSIZE, in);
+        int r=(int)fread(buf, 1, BUFSIZE, in);
         sb.write(buf, r);
         i+=r;
         if (r==0 || sb.size()+BUFSIZE>blocksize) {
@@ -1898,7 +1898,7 @@ int Jidac::add() {
 
   // Build htinv for fast lookups of sha1 in ht
   HTIndex htinv(ht, ht.size()+(total_size>>(10+fragment))+vf.size());
-  const unsigned htsize=ht.size();  // fragments at start of update
+  const unsigned int htsize=(int)ht.size();  // fragments at start of update
 
   // reserve space for the header block
   writeJidacHeader(&out, date, -1, htsize);
@@ -1906,10 +1906,10 @@ int Jidac::add() {
 
   // Compress until end of last file
   StringBuffer sb(blocksize+4096-128);  // block to compress
-  unsigned frags=0;    // number of fragments in sb
-  unsigned redundancy=0;  // estimated bytes that can be compressed out of sb
-  unsigned text=0;     // number of fragents containing text
-  unsigned exe=0;      // number of fragments containing x86 (exe, dll)
+  unsigned int frags=0;    // number of fragments in sb
+  unsigned int redundancy=0;  // estimated bytes that can be compressed out of sb
+  unsigned int text=0;     // number of fragents containing text
+  unsigned int exe=0;      // number of fragments containing x86 (exe, dll)
   const int ON=4;      // number of order-1 tables to save
   unsigned char o1prev[ON*256]={0};  // last ON order 1 predictions
   libzpaq::Array<char> fragbuf(MAX_FRAGMENT);
@@ -1951,7 +1951,7 @@ int Jidac::add() {
         unsigned h=0;  // rolling hash for finding fragment boundaries
         libzpaq::SHA1 sha1;
         while (true) {
-          if (bufptr>=buflen) bufptr=0, buflen=fread(buf, 1, BUFSIZE, in);
+          if (bufptr>=buflen) bufptr=0, buflen=(int)fread(buf, 1, BUFSIZE, in);
           if (bufptr>=buflen) c=EOF;
           else c=(unsigned char)buf[bufptr++];
           if (c!=EOF) {
@@ -2011,16 +2011,22 @@ int Jidac::add() {
         text1=(text1>=3);
         exe1=(exe1>=5);
         if (sz>0) h1=h1*h1/sz; // Test 2: near 0 if random.
-        unsigned h2=h1;
-        if (h2>hits) hits=h2;
-        h2=o1ct[0]*sz/256;  // Test 3: bytes never seen or that predict 0.
-        if (h2>hits) hits=h2;
+        unsigned int h2=(int)h1;
+        if (h2>hits) {
+          hits=h2;
+        }
+        h2=(int)(o1ct[0]*sz/256);  // Test 3: bytes never seen or that predict 0.
+        if (h2>hits) {
+          hits=h2;
+        }
         h2=0;
         for (int i=0; i<256*ON; ++i)  // Test 4: compare to previous o1.
           h2+=o1prev[i]==o1[i&255];
-        h2=h2*sz/(256*ON);
+        h2=(int)(h2*sz/(256*ON));
         if (h2>hits) hits=h2;
-        if (hits>sz) hits=sz;
+        if (hits>sz) {
+          hits=(int)sz;
+        }
 
         // Start a new block if the current block is almost full, or at
         // the start of a file that won't fit or doesn't share mutual
@@ -2036,15 +2042,23 @@ int Jidac::add() {
               if (o1prev[i] && o1prev[i]==o1[i&255]) ++ct;
             if (ct>ON*2) newblock=false;
           }
-          if (newsize>=blocksize) newblock=true;  // won't fit?
+          if (newsize>=blocksize) {
+            newblock=true;  // won't fit?
+          }
         }
-        if (sb.size()+sz+80+frags*4>=blocksize) newblock=true; // full?
-        if (fi==vf.size()) newblock=true;  // last file?
-        if (frags<1) newblock=false;  // block is empty?
+        if (sb.size()+sz+80+frags*4>=blocksize) {
+          newblock=true; // full?
+        }
+        if (fi==vf.size()) {
+          newblock=true;  // last file?
+        }
+        if (frags<1) {
+          newblock=false;  // block is empty?
+        }
 
         // Pad sb with fragment size list, then compress
         if (newblock) {
-          for (unsigned i=ht.size()-frags; i<ht.size(); ++i)
+          for (unsigned int i=(int)(ht.size()-frags); i<ht.size(); ++i)
             puti(sb, ht[i].usize, 4);  // list of frag sizes
           puti(sb, 0, 4); // omit first frag ID to make block movable
           puti(sb, frags, 4);  // number of frags
@@ -2061,16 +2075,16 @@ int Jidac::add() {
           if (method[0]!='i')
             job.write(sb, fn.c_str(), m.c_str());
           else {  // index: don't compress data
-            job.csize.push_back(sb.size());
+            job.csize.push_back((int)sb.size());
             sb.resize(0);
           }
-          blocklist.push_back(ht.size()-frags);  // mark block start
+          blocklist.push_back((unsigned int)ht.size()-frags);  // mark block start
           frags=redundancy=text=exe=0;
           memset(o1prev, 0, sizeof(o1prev));
         }
 
         // Append fragbuf to sb and update block statistics
-        sb.write(&fragbuf[0], sz);
+        sb.write(&fragbuf[0], (int)sz);
         ++frags;
         redundancy+=hits;
         exe+=exe1*4;
@@ -2084,8 +2098,8 @@ int Jidac::add() {
       // Update HT and ptr list
       if (fi<vf.size()) {
         if (htptr==0) {
-          htptr=ht.size();
-          ht.push_back(HT(sha1result, sz));
+          htptr=(unsigned int)ht.size();
+          ht.push_back(HT(sha1result, (int)sz));
           htinv.update();
           fsize+=sz;
         }
@@ -2132,7 +2146,7 @@ int Jidac::add() {
   // Append compressed fragment tables to archive
   int64_t cdatasize=out.tell()-header_end;
   StringBuffer is;
-  blocklist.push_back(ht.size());
+  blocklist.push_back((unsigned int)ht.size());
   for (unsigned i=0; i<job.csize.size(); ++i) {
     if (blocklist[i]<blocklist[i+1]) {
       puti(is, job.csize[i], 4);  // compressed size of block
@@ -2153,7 +2167,7 @@ int Jidac::add() {
   for (DTMap::iterator p=dt.begin(); p!=dt.end(); ++p) {
     if (p->second.date && !p->second.data) {
       puti(is, 0, 8);
-      is.write(p->first.c_str(), strlen(p->first.c_str()));
+      is.write(p->first.c_str(), (int) strlen(p->first.c_str()));
       is.put(0);
       if (summary<=0) {
         printf("- ");
@@ -2192,7 +2206,7 @@ int Jidac::add() {
         }
         ++added;
         puti(is, p->second.date, 8);
-        is.write(filename.c_str(), strlen(filename.c_str()));
+        is.write(filename.c_str(), (int)strlen(filename.c_str()));
         is.put(0);
         if ((p->second.attr&255)=='u') {  // unix attributes
           puti(is, 3, 4);
@@ -2292,8 +2306,10 @@ bool Jidac::equal(DTMap::const_iterator p, const char* filename) {
     for (int j=0; j<ht[f].usize;) {
       int n=ht[f].usize-j;
       if (n>BUFSIZE) n=BUFSIZE;
-      int r=fread(buf, 1, n, in);
-      if (r!=n) return fclose(in), false;
+      int r=(int) fread(buf, 1, n, in);
+      if (r!=n) {
+        return fclose(in), false;
+      }
       sha1.write(buf, n);
       j+=n;
     }
@@ -2581,7 +2597,7 @@ int64_t copy(libzpaq::Reader& in, libzpaq::Writer& out, uint64_t n=~0ull) {
   int64_t result=0;
   char buf[BUFSIZE];
   while (n>0) {
-    int nc=n>BUFSIZE ? BUFSIZE : n;
+    int nc=(int)(n>BUFSIZE ? BUFSIZE : n);
     int nr=in.read(buf, nc);
     if (nr<1) break;
     out.write(buf, nr);
@@ -2659,7 +2675,7 @@ int Jidac::extract() {
 
       // Read C block. Assume uncompressed and hash is present
       static char hdr[256]={0};  // Read C block
-      int hsize=ver[i].data_offset-ver[i].offset;
+      int hsize=(int)(ver[i].data_offset-ver[i].offset);
       if (hsize<70 || hsize>255) error("bad C block size");
       if (in.read(hdr, hsize)!=hsize) error("EOF in header");
       if (hdr[hsize-36]!=9  // size of uncompressed block low byte
@@ -2818,7 +2834,7 @@ int Jidac::extract() {
       if (p!=dt.end() && p->second.date>0 && p->second.data>=0) {
         string filename=rename(p->first);
         puti(is, p->second.date, 8);
-        is.write(filename.c_str(), strlen(filename.c_str()));
+        is.write(filename.c_str(), (int)strlen(filename.c_str()));
         is.put(0);
         if ((p->second.attr&255)=='u') {  // unix attributes
           puti(is, 3, 4);
@@ -3028,7 +3044,7 @@ int Jidac::list() {
   DTMap* dp[2]={&dt, &edt};
   for (int i=0; i<2; ++i) {
     for (DTMap::iterator p=dp[i]->begin(); p!=dp[i]->end(); ++p) {
-      const int len=p->first.size();
+      const int len=(int)p->first.size();
       if (len>0 && p->first[len]!='/') {
         for (int j=0; j<len; ++j) {
           if (p->first[j]=='/') {
@@ -3103,7 +3119,7 @@ int Jidac::list() {
     if (p->second.data=='^') ++duplicates;
 
     // List selected comparison results
-    if (!strchr(nottype.c_str(), p->second.data)) {
+    if (!strchr(nottype.c_str(), (int) p->second.data)) {
       if (p->first!="" && p->first[p->first.size()-1]!='/')
         usize+=p->second.size;
       printf("%c %s %12.0f ", char(p->second.data),
