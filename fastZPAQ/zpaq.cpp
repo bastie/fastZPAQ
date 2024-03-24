@@ -225,7 +225,6 @@ const FP FPNULL=NULL;
 const char* const RB="rb";
 const char* const WB="wb";
 const char* const RBPLUS="rb+";
-const char* const WBPLUS="wb+";
 
 // Return true if a file or directory (UTF-8 without trailing /) exists.
 bool exists(string filename) {
