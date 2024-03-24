@@ -898,7 +898,7 @@ template<typename T>
 void Array<T>::resize(size_t sz, int ex) {
   while (ex>0) {
     if (sz>sz*2) error("Array too big");
-    sz*=2, --ex;
+    static_cast<void>(sz*=2), --ex;
   }
   if (n>0) {
     ::free((char*)data-offset);
@@ -1028,7 +1028,9 @@ public:
 
   void flush();           // write outbuf[0..bufptr-1] to output and sha1
   void outc(int ch) {     // output byte ch (0..255) or -1 at EOS
-    if (ch<0 || (outbuf[bufptr]=ch, ++bufptr==outbuf.isize())) flush();
+    if (ch<0 || (static_cast<void>(outbuf[bufptr]=ch), ++bufptr==outbuf.isize())) {
+      flush();
+    }
   }
 
   // ZPAQ1 block header
@@ -1433,8 +1435,12 @@ public:
   // Return the number of bytes actually read.
   // If buf is NULL then advance read pointer without reading.
   int read(char* buf, int n) {
-    if (rpos+n>wpos) n=wpos-rpos;
-    if (n>0 && buf) memcpy(buf, p+rpos, n);
+    if (rpos+n>wpos) {
+      n=(int)(wpos-rpos);
+    }
+    if (n>0 && buf) {
+      memcpy(buf, p+rpos, n);
+    }
     rpos+=n;
     return n;
   }
