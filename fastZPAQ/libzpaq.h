@@ -831,7 +831,6 @@ Use at your own risk.
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <algorithm>
 
 namespace libzpaq {
 
@@ -1451,11 +1450,12 @@ public:
 
   // Swap efficiently (init is not swapped)
   void swap(StringBuffer& s) {
-    std::swap(p, s.p);
-    std::swap(al, s.al);
-    std::swap(wpos, s.wpos);
-    std::swap(rpos, s.rpos);
-    std::swap(limit, s.limit);
+    unsigned char* tempP; tempP = s.p; s.p = p; p = tempP; // std::swap(p, s.p);
+    size_t swap_size_t;
+    swap_size_t = s.al; s.al = al; al = swap_size_t; // std::swap(al, s.al);
+    swap_size_t = s.wpos; s.wpos = wpos; wpos = swap_size_t; // std::swap(wpos, s.wpos);
+    swap_size_t = s.rpos; s.rpos = rpos; rpos = swap_size_t; // std::swap(rpos, s.rpos);
+    swap_size_t = s.limit; s.limit = limit; limit = swap_size_t; // std::swap(limit, s.limit);
   }
 };
 

@@ -7,6 +7,7 @@ xcuserdata/
 *.exe
 *.dll
 *.o
+*.1
 zp
 unzp
 zpaq

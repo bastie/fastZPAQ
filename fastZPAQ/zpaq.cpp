@@ -1,6 +1,6 @@
 // zpaq.cpp - Journaling incremental deduplicating archiver
 
-#define ZPAQ_VERSION "7.15"
+#define ZPAQ_VERSION "7.15 (modified)"
 /*
   This software is provided as-is, with no warranty.
   I, Matt Mahoney, release this software into
