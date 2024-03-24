@@ -110,8 +110,10 @@ void SHA1::write(const char* buf, int64_t n) {
   const unsigned char* p=(const unsigned char*) buf;
   for (; n>0 && (U32(len)&511)!=0; --n) put(*p++);
   for (; n>=64; n-=64) {
-    for (int i=0; i<16; ++i)
-      w[i]=p[0]<<24|p[1]<<16|p[2]<<8|p[3], p+=4;
+    for (int i=0; i<16; ++i) {
+      w[i]=p[0]<<24|p[1]<<16|p[2]<<8|p[3];
+      p+=4;
+    }
     len+=512;
     process();
   }
@@ -1921,12 +1923,21 @@ size_t Predictor::find(Array<U8>& ht, int sizebits, U32 cxt) {
   if (ht[h1]==chk) return h1;
   size_t h2=h0^32;
   if (ht[h2]==chk) return h2;
-  if (ht[h0+1]<=ht[h1+1] && ht[h0+1]<=ht[h2+1])
-    return memset(&ht[h0], 0, 16), ht[h0]=chk, h0;
-  else if (ht[h1+1]<ht[h2+1])
-    return memset(&ht[h1], 0, 16), ht[h1]=chk, h1;
-  else
-    return memset(&ht[h2], 0, 16), ht[h2]=chk, h2;
+  if (ht[h0+1]<=ht[h1+1] && ht[h0+1]<=ht[h2+1]) {
+    memset(&ht[h0], 0, 16);
+    ht[h0]=chk;
+    return h0;
+  }
+  else if (ht[h1+1]<ht[h2+1]) {
+    memset(&ht[h1], 0, 16);
+    ht[h1]=chk;
+    return h1;
+  }
+  else {
+    memset(&ht[h2], 0, 16);
+    ht[h2]=chk;
+    return h2;
+  }
 }
 
 /////////////////////// Decoder ///////////////////////
@@ -1938,8 +1949,14 @@ Decoder::Decoder(ZPAQL& z):
 
 void Decoder::init() {
   pr.init();
-  if (pr.isModeled()) low=1, high=0xFFFFFFFF, curr=0;
-  else low=high=curr=0;
+  if (pr.isModeled()) {
+    low=1;
+    high=0xFFFFFFFF;
+    curr=0;
+  }
+  else {
+    low=high=curr=0;
+  }
 }
 
 // Return next bit of decoded input, which has 16 bit probability p of being 1
@@ -1947,8 +1964,14 @@ int Decoder::decode(int p) {
   if (curr<low || curr>high) error("archive corrupted");
   U32 mid=low+U32(((high-low)*U64(U32(p)))>>16);  // split range
   int y;
-  if (curr<=mid) y=1, high=mid;  // pick half
-  else y=0, low=mid+1;
+  if (curr<=mid) { // pick half
+    y=1;
+    high=mid;
+  }
+  else {
+    y=0;
+    low=mid+1;
+  }
   while ((high^low)<0x1000000) { // shift out identical leading bytes
     high=high<<8|255;
     low=low<<8;
@@ -2221,7 +2244,10 @@ void Encoder::init() {
   low=1;
   high=0xFFFFFFFF;
   pr.init();
-  if (!pr.isModeled()) low=0, buf.resize(1<<16);
+  if (!pr.isModeled()) {
+    low=0;
+    buf.resize(1<<16);
+  }
 }
 
 // compress bit y having probability p/64K
@@ -2412,8 +2438,14 @@ int Compiler::compile_comp(ZPAQL& z) {
       if_stack.push(z.hend+1);
     }
     else if (op==ELSE || op==ELSEL) {
-      if (op==ELSE) op=JMP, operand=0;
-      if (op==ELSEL) op=LJ, operand=operand2=0;
+      if (op==ELSE) {
+        op=JMP;
+        operand=0;
+      }
+      if (op==ELSEL) {
+        op=LJ;
+        operand=operand2=0;
+      }
       int a=if_stack.pop();  // conditional jump target location
       if (z.header[a-1]!=LJ) {  // IF, IFNOT
         int j=z.hend-a+1+(op==LJ); // offset at IF
@@ -3123,7 +3155,8 @@ ss_heapsort(const unsigned char *Td, const int *PA, int *SA, int size) {
   for(i = m / 2 - 1; 0 <= i; --i) { ss_fixdown(Td, PA, SA, i, m); }
   if((size % 2) == 0) { SWAP(SA[0], SA[m]); ss_fixdown(Td, PA, SA, 0, m); }
   for(i = m - 1; 0 < i; --i) {
-    t = SA[0], SA[0] = SA[i];
+    t = SA[0];
+    SA[0] = SA[i];
     ss_fixdown(Td, PA, SA, 0, i);
     SA[i] = t;
   }
@@ -3249,16 +3282,22 @@ ss_mintrosort(const unsigned char *T, const int *PA,
       if((a - first) <= (last - a)) {
         if(1 < (a - first)) {
           STACK_PUSH(a, last, depth, -1);
-          last = a, depth += 1, limit = ss_ilg((int)(a - first));
+          last = a;
+          depth += 1;
+          limit = ss_ilg((int)(a - first));
         } else {
-          first = a, limit = -1;
+          first = a;
+          limit = -1;
         }
       } else {
         if(1 < (last - a)) {
           STACK_PUSH(first, a, depth + 1, ss_ilg((int)(a - first)));
-          first = a, limit = -1;
+          first = a;
+          limit = -1;
         } else {
-          last = a, depth += 1, limit = ss_ilg((int)(a - first));
+          last = a;
+          depth += 1;
+          limit = ss_ilg((int)(a - first));
         }
       }
       continue;
@@ -3308,7 +3347,8 @@ ss_mintrosort(const unsigned char *T, const int *PA,
         SWAP(*e, *f);
       }
 
-      a = first + (b - a), c = last - (d - c);
+      a = first + (b - a);
+      c = last - (d - c);
       b = (v <= Td[PA[*a] - 1]) ? a : ss_partition(PA, a, c, depth);
 
       if((a - first) <= (last - c)) {
@@ -3323,7 +3363,10 @@ ss_mintrosort(const unsigned char *T, const int *PA,
         } else {
           STACK_PUSH(c, last, depth, limit);
           STACK_PUSH(first, a, depth, limit);
-          first = b, last = c, depth += 1, limit = ss_ilg((int)(c - b));
+          first = b;
+          last = c;
+          depth += 1;
+          limit = ss_ilg((int)(c - b));
         }
       } else {
         if((a - first) <= (c - b)) {
@@ -3337,7 +3380,10 @@ ss_mintrosort(const unsigned char *T, const int *PA,
         } else {
           STACK_PUSH(first, a, depth, limit);
           STACK_PUSH(c, last, depth, limit);
-          first = b, last = c, depth += 1, limit = ss_ilg((int)(c - b));
+          first = b;
+          last = c;
+          depth += 1;
+          limit = ss_ilg((int)(c - b));
         }
       }
     } else {
@@ -3364,7 +3410,9 @@ void
 ss_blockswap(int *a, int *b, int n) {
   int t;
   for(; 0 < n; --n, ++a, ++b) {
-    t = *a, *a = *b, *b = t;
+    t = *a;
+    *a = *b;
+    *b = t;
   }
 }
 
@@ -3373,33 +3421,44 @@ void
 ss_rotate(int *first, int *middle, int *last) {
   int *a, *b, t;
   int l, r;
-  l = (int)(middle - first), r = (int)(last - middle);
+  l = (int)(middle - first);
+  r = (int)(last - middle);
   for(; (0 < l) && (0 < r);) {
     if(l == r) { ss_blockswap(first, middle, l); break; }
     if(l < r) {
-      a = last - 1, b = middle - 1;
+      a = last - 1;
+      b = middle - 1;
       t = *a;
       do {
-        *a-- = *b, *b-- = *a;
+        *a-- = *b;
+        *b-- = *a;
         if(b < first) {
           *a = t;
           last = a;
           if((r -= l + 1) <= l) { break; }
-          a -= 1, b = middle - 1;
+          a -= 1;
+          b = middle - 1;
           t = *a;
         }
       } while(1);
     } else {
-      a = first, b = middle;
+      a = first;
+      b = middle;
       t = *a;
       do {
-        *a++ = *b, *b++ = *a;
+        *a++ = *b;
+        *b++ = *a;
         if(last <= b) {
           *a = t;
           first = a + 1;
-          if((l -= r + 1) <= r) { break; }
-          a += 1, b = middle;
-          t = *a;
+          if((l -= r + 1) <= r) {
+            break;
+          }
+          else {
+            a += 1;
+            b = middle;
+            t = *a;
+          }
         }
       } while(1);
     }
@@ -3409,11 +3468,9 @@ ss_rotate(int *first, int *middle, int *last) {
 
 /*---------------------------------------------------------------------------*/
 
-static
-void
-ss_inplacemerge(const unsigned char *T, const int *PA,
-                int *first, int *middle, int *last,
-                int depth) {
+static void ss_inplacemerge(const unsigned char *T, const int *PA,
+                            int *first, int *middle, int *last,
+                            int depth) {
   const int *p;
   int *a, *b;
   int len, half;
@@ -3474,10 +3531,15 @@ ss_mergeforward(const unsigned char *T, const int *PA,
       } while(*b < 0);
     } else if(r > 0) {
       do {
-        *a++ = *c, *c++ = *a;
+        *a++ = *c;
+        *c++ = *a;
         if(last <= c) {
-          while(b < bufend) { *a++ = *b, *b++ = *a; }
-          *a = *b, *b = t;
+          while(b < bufend) {
+            *a++ = *b;
+            *b++ = *a;
+          }
+          *a = *b;
+          *b = t;
           return;
         }
       } while(*c < 0);
@@ -3490,10 +3552,15 @@ ss_mergeforward(const unsigned char *T, const int *PA,
       } while(*b < 0);
 
       do {
-        *a++ = *c, *c++ = *a;
+        *a++ = *c;
+        *c++ = *a;
         if(last <= c) {
-          while(b < bufend) { *a++ = *b, *b++ = *a; }
-          *a = *b, *b = t;
+          while(b < bufend) {
+            *a++ = *b;
+            *b++ = *a;
+          }
+          *a = *b;
+          *b = t;
           return;
         }
       } while(*c < 0);
@@ -3524,32 +3591,76 @@ ss_mergebackward(const unsigned char *T, const int *PA,
   for(t = *(a = last - 1), b = bufend, c = middle - 1;;) {
     r = ss_compare(T, p1, p2, depth);
     if(0 < r) {
-      if(x & 1) { do { *a-- = *b, *b-- = *a; } while(*b < 0); x ^= 1; }
+      if(x & 1) {
+        do {
+          *a-- = *b;
+          *b-- = *a;
+        } while(*b < 0); x ^= 1;
+      }
       *a-- = *b;
-      if(b <= buf) { *buf = t; break; }
+      if(b <= buf) {
+        *buf = t;
+        break;
+      }
       *b-- = *a;
-      if(*b < 0) { p1 = PA + ~*b; x |= 1; }
-      else       { p1 = PA +  *b; }
+      if(*b < 0) {
+        p1 = PA + ~*b; 
+        x |= 1;
+      }
+      else {
+        p1 = PA +  *b;
+      }
     } else if(r < 0) {
-      if(x & 2) { do { *a-- = *c, *c-- = *a; } while(*c < 0); x ^= 2; }
-      *a-- = *c, *c-- = *a;
+      if(x & 2) {
+        do {
+          *a-- = *c;
+          *c-- = *a;
+        } while(*c < 0); 
+        x ^= 2;
+      }
+      *a-- = *c;
+      *c-- = *a;
       if(c < first) {
-        while(buf < b) { *a-- = *b, *b-- = *a; }
-        *a = *b, *b = t;
+        while(buf < b) {
+          *a-- = *b;
+          *b-- = *a;
+        }
+        *a = *b;
+        *b = t;
         break;
       }
       if(*c < 0) { p2 = PA + ~*c; x |= 2; }
       else       { p2 = PA +  *c; }
     } else {
-      if(x & 1) { do { *a-- = *b, *b-- = *a; } while(*b < 0); x ^= 1; }
+      if(x & 1) {
+        do {
+          *a-- = *b;
+          *b-- = *a;
+        } while(*b < 0);
+        x ^= 1;
+      }
       *a-- = ~*b;
-      if(b <= buf) { *buf = t; break; }
+      if(b <= buf) {
+        *buf = t;
+        break;
+      }
       *b-- = *a;
-      if(x & 2) { do { *a-- = *c, *c-- = *a; } while(*c < 0); x ^= 2; }
-      *a-- = *c, *c-- = *a;
+      if(x & 2) {
+        do {
+          *a-- = *c;
+          *c-- = *a;
+        } while(*c < 0);
+        x ^= 2;
+      }
+      *a-- = *c;
+      *c-- = *a;
       if(c < first) {
-        while(buf < b) { *a-- = *b, *b-- = *a; }
-        *a = *b, *b = t;
+        while(buf < b) {
+          *a-- = *b;
+          *b-- = *a;
+        }
+        *a = *b;
+        *b = t;
         break;
       }
       if(*b < 0) { p1 = PA + ~*b; x |= 1; }
@@ -3614,9 +3725,11 @@ ss_swapmerge(const unsigned char *T, const int *PA,
     }
 
     if(0 < m) {
-      lm = middle - m, rm = middle + m;
+      lm = middle - m;
+      rm = middle + m;
       ss_blockswap(lm, middle, m);
-      l = r = middle, next = 0;
+      l = r = middle;
+      next = 0;
       if(rm < last) {
         if(*rm < 0) {
           *rm = ~*rm;
@@ -3630,11 +3743,18 @@ ss_swapmerge(const unsigned char *T, const int *PA,
 
       if((l - first) <= (last - r)) {
         STACK_PUSH(r, rm, last, (next & 3) | (check & 4));
-        middle = lm, last = l, check = (check & 3) | (next & 4);
-      } else {
-        if((next & 2) && (r == middle)) { next ^= 6; }
+        middle = lm;
+        last = l;
+        check = (check & 3) | (next & 4);
+      } 
+      else {
+        if((next & 2) && (r == middle)) {
+          next ^= 6;
+        }
         STACK_PUSH(first, lm, l, (check & 3) | (next & 4));
-        first = r, middle = rm, check = (next & 3) | (check & 4);
+        first = r;
+        middle = rm;
+        check = (next & 3) | (check & 4);
       }
     } else {
       if(ss_compare(T, PA + GETIDX(*(middle - 1)), PA + *middle, depth) == 0) {
@@ -3674,10 +3794,15 @@ sssort(const unsigned char *T, const int *PA,
   if((bufsize < SS_BLOCKSIZE) &&
       (bufsize < (last - first)) &&
       (bufsize < (limit = ss_isqrt((int)(last - first))))) {
-    if(SS_BLOCKSIZE < limit) { limit = SS_BLOCKSIZE; }
-    buf = middle = last - limit, bufsize = limit;
-  } else {
-    middle = last, limit = 0;
+    if(SS_BLOCKSIZE < limit) {
+      limit = SS_BLOCKSIZE;
+    }
+    buf = middle = last - limit;
+    bufsize = limit;
+  } 
+  else {
+    middle = last;
+    limit = 0;
   }
   for(a = first, i = 0; SS_BLOCKSIZE < (middle - a); a += SS_BLOCKSIZE, ++i) {
 #if SS_INSERTIONSORT_THRESHOLD < SS_BLOCKSIZE
@@ -3687,7 +3812,10 @@ sssort(const unsigned char *T, const int *PA,
 #endif
     curbufsize = (int)(last - (a + SS_BLOCKSIZE));
     curbuf = a + SS_BLOCKSIZE;
-    if(curbufsize <= bufsize) { curbufsize = bufsize, curbuf = buf; }
+    if(curbufsize <= bufsize) {
+      curbufsize = bufsize;
+      curbuf = buf;
+    }
     for(b = a, k = SS_BLOCKSIZE, j = i; j & 1; b -= k, k <<= 1, j >>= 1) {
       ss_swapmerge(T, PA, b - k, b, b + k, curbuf, curbufsize, depth);
     }
@@ -3715,7 +3843,9 @@ sssort(const unsigned char *T, const int *PA,
 
   if(lastsuffix != 0) {
     /* Insert last type B* suffix. */
-    int PAi[2]; PAi[0] = PA[*(first - 1)], PAi[1] = n - 2;
+    int PAi[2]; 
+    PAi[0] = PA[*(first - 1)];
+    PAi[1] = n - 2;
     for(a = first, i = *(first - 1);
         (a < last) && ((*a < 0) || (0 < ss_compare(T, &(PAi[0]), PA + *a, depth)));
         ++a) {
@@ -3794,7 +3924,8 @@ tr_heapsort(const int *ISAd, int *SA, int size) {
   for(i = m / 2 - 1; 0 <= i; --i) { tr_fixdown(ISAd, SA, i, m); }
   if((size % 2) == 0) { SWAP(SA[0], SA[m]); tr_fixdown(ISAd, SA, 0, m); }
   for(i = m - 1; 0 < i; --i) {
-    t = SA[0], SA[0] = SA[i];
+    t = SA[0];
+    SA[0] = SA[i];
     tr_fixdown(ISAd, SA, 0, i);
     SA[i] = t;
   }
@@ -3932,9 +4063,11 @@ tr_partition(const int *ISAd,
     for(e = b, f = last - s; 0 < s; --s, ++e, ++f) {
       SWAP(*e, *f);
     }
-    first += (b - a), last -= (d - c);
+    first += (b - a);
+    last -= (d - c);
   }
-  *pa = first, *pb = last;
+  *pa = first;
+  *pb = last;
 }
 
 static void tr_copy(int *ISA, const int *SA,
@@ -4034,25 +4167,30 @@ tr_introsort(int *ISA, const int *ISAd,
         if((a - first) <= (last - b)) {
           if(1 < (a - first)) {
             STACK_PUSH5(ISAd, b, last, tr_ilg((int)(last - b)), trlink);
-            last = a, limit = tr_ilg((int)(a - first));
+            last = a;
+            limit = tr_ilg((int)(a - first));
           } else if(1 < (last - b)) {
-            first = b, limit = tr_ilg((int)(last - b));
+            first = b;
+            limit = tr_ilg((int)(last - b));
           } else {
             STACK_POP5(ISAd, first, last, limit, trlink);
           }
         } else {
           if(1 < (last - b)) {
             STACK_PUSH5(ISAd, first, a, tr_ilg((int)(a - first)), trlink);
-            first = b, limit = tr_ilg((int)(last - b));
+            first = b;
+            limit = tr_ilg((int)(last - b));
           } else if(1 < (a - first)) {
-            last = a, limit = tr_ilg((int)(a - first));
+            last = a;
+            limit = tr_ilg((int)(a - first));
           } else {
             STACK_POP5(ISAd, first, last, limit, trlink);
           }
         }
       } else if(limit == -2) {
         /* tandem repeat copy */
-        a = stack[--ssize].b, b = stack[ssize].c;
+        a = stack[--ssize].b;
+        b = stack[ssize].c;
         if(stack[ssize].d == 0) {
           tr_copy(ISA, SA, first, a, b, last, (int)(ISAd - ISA));
         } else {
@@ -4076,19 +4214,25 @@ tr_introsort(int *ISA, const int *ISAd,
           if(trbudget_check(budget, (int)(a - first))) {
             if((a - first) <= (last - a)) {
               STACK_PUSH5(ISAd, a, last, -3, trlink);
-              ISAd += incr, last = a, limit = next;
+              ISAd += incr;
+              last = a;
+              limit = next;
             } else {
               if(1 < (last - a)) {
                 STACK_PUSH5(ISAd + incr, first, a, next, trlink);
-                first = a, limit = -3;
+                first = a;
+                limit = -3;
               } else {
-                ISAd += incr, last = a, limit = next;
+                ISAd += incr;
+                last = a;
+                limit = next;
               }
             }
           } else {
             if(0 <= trlink) { stack[trlink].d = -1; }
             if(1 < (last - a)) {
-              first = a, limit = -3;
+              first = a;
+              limit = -3;
             } else {
               STACK_POP5(ISAd, first, last, limit, trlink);
             }
@@ -4141,7 +4285,10 @@ tr_introsort(int *ISA, const int *ISAd,
               STACK_PUSH5(ISAd + incr, a, b, next, trlink);
               first = b;
             } else {
-              ISAd += incr, first = a, last = b, limit = next;
+              ISAd += incr;
+              first = a;
+              last = b;
+              limit = next;
             }
           } else if((a - first) <= (b - a)) {
             if(1 < (a - first)) {
@@ -4150,12 +4297,18 @@ tr_introsort(int *ISA, const int *ISAd,
               last = a;
             } else {
               STACK_PUSH5(ISAd, b, last, limit, trlink);
-              ISAd += incr, first = a, last = b, limit = next;
+              ISAd += incr;
+              first = a;
+              last = b;
+              limit = next;
             }
           } else {
             STACK_PUSH5(ISAd, b, last, limit, trlink);
             STACK_PUSH5(ISAd, first, a, limit, trlink);
-            ISAd += incr, first = a, last = b, limit = next;
+            ISAd += incr;
+            first = a;
+            last = b;
+            limit = next;
           }
         } else {
           if((a - first) <= (b - a)) {
@@ -4167,7 +4320,10 @@ tr_introsort(int *ISA, const int *ISAd,
               STACK_PUSH5(ISAd + incr, a, b, next, trlink);
               last = a;
             } else {
-              ISAd += incr, first = a, last = b, limit = next;
+              ISAd += incr;
+              first = a;
+              last = b;
+              limit = next;
             }
           } else if((last - b) <= (b - a)) {
             if(1 < (last - b)) {
@@ -4176,12 +4332,18 @@ tr_introsort(int *ISA, const int *ISAd,
               first = b;
             } else {
               STACK_PUSH5(ISAd, first, a, limit, trlink);
-              ISAd += incr, first = a, last = b, limit = next;
+              ISAd += incr;
+              first = a;
+              last = b;
+              limit = next;
             }
           } else {
             STACK_PUSH5(ISAd, first, a, limit, trlink);
             STACK_PUSH5(ISAd, b, last, limit, trlink);
-            ISAd += incr, first = a, last = b, limit = next;
+            ISAd += incr;
+            first = a;
+            last = b;
+            limit = next;
           }
         }
       } else {
@@ -4208,7 +4370,8 @@ tr_introsort(int *ISA, const int *ISAd,
       }
     } else {
       if(trbudget_check(budget, (int) (last - first))) {
-        limit = tr_ilg((int)(last - first)), ISAd += incr;
+        limit = tr_ilg((int)(last - first));
+        ISAd += incr;
       } else {
         if(0 <= trlink) { stack[trlink].d = -1; }
         STACK_POP5(ISAd, first, last, limit, trlink);
@@ -4312,16 +4475,22 @@ note:
 
   if(0 < m) {
     /* Sort the type B* suffixes by their first two characters. */
-    PAb = SA + n - m; ISAb = SA + m;
+    PAb = SA + n - m; 
+    ISAb = SA + m;
     for(i = m - 2; 0 <= i; --i) {
-      t = PAb[i], c0 = T[t], c1 = T[t + 1];
+      t = PAb[i];
+      c0 = T[t];
+      c1 = T[t + 1];
       SA[--BUCKET_BSTAR(c0, c1)] = i;
     }
-    t = PAb[m - 1], c0 = T[t], c1 = T[t + 1];
+    t = PAb[m - 1];
+    c0 = T[t];
+    c1 = T[t + 1];
     SA[--BUCKET_BSTAR(c0, c1)] = m - 1;
 
     /* Sort the type B* substrings using sssort. */
-    buf = SA + m, bufsize = n - (2 * m);
+    buf = SA + m;
+    bufsize = n - (2 * m);
     for(c0 = ALPHABET_SIZE - 2, j = m; 0 < j; --c0) {
       for(c1 = ALPHABET_SIZE - 1; c0 < c1; j = i, --c1) {
         i = BUCKET_BSTAR(c0, c1);
@@ -4510,7 +4679,12 @@ divsufsort(const unsigned char *T, int *SA, int n) {
   if((T == NULL) || (SA == NULL) || (n < 0)) { return -1; }
   else if(n == 0) { return 0; }
   else if(n == 1) { SA[0] = 0; return 0; }
-  else if(n == 2) { m = (T[0] < T[1]); SA[m ^ 1] = 0, SA[m] = 1; return 0; }
+  else if(n == 2) {
+    m = (T[0] < T[1]);
+    SA[m ^ 1] = 0;
+    SA[m] = 1;
+    return 0;
+  }
 
   bucket_A = (int *)malloc(BUCKET_A_SIZE * sizeof(int));
   bucket_B = (int *)malloc(BUCKET_B_SIZE * sizeof(int));
@@ -4638,7 +4812,9 @@ class LZBuffer: public libzpaq::Reader {
     bits|=x<<nbits;
     nbits+=k;
     while (nbits>7) {
-      buf[wpos++]=bits, bits>>=8, nbits-=8;
+      buf[wpos++]=bits;
+      bits>>=8;
+      nbits-=8;
     }
   }
 
@@ -4693,9 +4869,18 @@ public:
 // floor(log2(x)) + 1 = number of bits excluding leading zeros (0..32)
 int lg(unsigned x) {
   unsigned r=0;
-  if (x>=65536) r=16, x>>=16;
-  if (x>=256) r+=8, x>>=8;
-  if (x>=16) r+=4, x>>=4;
+  if (x>=65536) {
+    r=16;
+    x>>=16;
+  }
+  if (x>=256) {
+    r+=8;
+    x>>=8;
+  }
+  if (x>=16) {
+    r+=4;
+    x>>=4;
+  }
   return
     "\x00\x01\x02\x02\x03\x03\x03\x03\x04\x04\x04\x04\x04\x04\x04\x04"[x]+r;
 }
@@ -4768,10 +4953,24 @@ void LZBuffer::fill() {
   // BWT
   if (level==3) {
     for (; wpos<BUFSIZE && i<n+5; ++i) {
-      if (i==0) put(n>0 ? in[n-1] : 255);
-      else if (i>n) put(idx&255), idx>>=8;
-      else if (sa[i-1]==0) idx=i, put(255);
-      else put(in[sa[i-1]-1]);
+      if (i==0) {
+        put(n>0 ? in[n-1] : 255);
+      }
+      else {
+        if (i>n) {
+          put(idx&255);
+          idx>>=8;
+        }
+        else {
+          if (sa[i-1]==0) {
+            idx=i;
+            put(255);
+          }
+          else {
+            put(in[sa[i-1]-1]);
+          }
+        }
+      }
     }
     return;
   }
@@ -4797,16 +4996,23 @@ void LZBuffer::fill() {
         unsigned q=isa[(h+i)&mask];  // location of h+i in SA
         if (sa[q]!=h+i) continue;
         for (int j=-1; j<=1; j+=2) {  // search backward and forward
-          for (unsigned k=1; k<=bucket; ++k) {
-            unsigned p;  // match to be tested
+          for (unsigned int k=1; k<=bucket; ++k) {
+            unsigned int p;  // match to be tested
             if (q+j*k<n && (p=sa[q+j*k]-h)<i) {
               unsigned l, l1;  // length of match, leading literals
               for (l=h; i+l<n && l<maxMatch && in[p+l]==in[i+l]; ++l);
               for (l1=h; l1>0 && in[p+l1-1]==in[i+l1-1]; --l1);
               int score=int(l-l1)*8-lg(i-p)-4*(lit==0 && l1>0)-11;
               for (unsigned a=0; a<h; ++a) score=score*5/8;
-              if (score>bscore) blen=l, bp=p, blit=l1, bscore=score;
-              if (l<blen || l<minMatch || l>255) break;
+              if (score>bscore) {
+                blen=l;
+                bp=p;
+                blit=l1;
+                bscore=score;
+              }
+              if (l<blen || l<minMatch || l>255) {
+                break;
+              }
             }
           }
         }
@@ -4830,11 +5036,18 @@ void LZBuffer::fill() {
                 int l1;  // length back from lookahead
                 for (l1=lookahead; l1>0 && in[p+l1-1]==in[i+l1-1]; --l1);
                 int score=int(l-l1)*8-lg(i-p)-8*(lit==0 && l1>0)-11;
-                if (score>bscore) blen=l, bp=p, blit=l1, bscore=score;
+                if (score>bscore) {
+                  blen=l;
+                  bp=p;
+                  blit=l1;
+                  bscore=score;
+                }
               }
             }
           }
-          if (blen>=128) break;
+          if (blen>=128) {
+            break;
+          }
         }
       }
 
@@ -4848,7 +5061,12 @@ void LZBuffer::fill() {
               unsigned l;
               for (l=0; i+l<n && l<maxMatch && in[p+l]==in[i+l]; ++l);
               int score=l*8-lg(i-p)-2*(lit>0)-11;
-              if (score>bscore) blen=l, bp=p, blit=0, bscore=score;
+              if (score>bscore) {
+                blen=l;
+                bp=p;
+                blit=0;
+                bscore=score;
+              }
             }
           }
           if (blen>=128) break;
@@ -5703,7 +5921,10 @@ void compressBlock(StringBuffer* in, Writer* out, const char* method_,
         int t=0;
         for (int j=5; j<NR && t<n1; ++j) {
           const double s=r[j]/(256.0+n1-t);
-          if (s>score) score=s, period=j;
+          if (s>score) {
+            score=s;
+            period=j;
+          }
           t+=r[j];
         }
         if (period>4 && score>0.1) {

@@ -151,7 +151,10 @@ string dateToString(int64_t date) {
   if (date<=0) return "                   ";
   string s="0000-00-00 00:00:00";
   static const int t[]={18,17,15,14,12,11,9,8,6,5,3,2,1,0};
-  for (int i=0; i<14; ++i) s[t[i]]+=int(date%10), date/=10;
+  for (int i=0; i<14; ++i) {
+    s[t[i]]+=int(date%10);
+    date/=10;
+  }
   return s;
 }
 
@@ -295,10 +298,14 @@ string itos(int64_t x, int n=1) {
 // Replace * and ? in fn with part or digits of part
 string subpart(string fn, int part) {
   for (int j=(int)(fn.size()-1); j>=0; --j) {
-    if (fn[j]=='?')
-      fn[j]='0'+part%10, part/=10;
-    else if (fn[j]=='*')
-      fn=fn.substr(0, j)+itos(part)+fn.substr(j+1), part=0;
+    if (fn[j]=='?') {
+      fn[j]='0'+part%10;
+      part/=10;
+    }
+    else if (fn[j]=='*') {
+      fn=fn.substr(0, j)+itos(part)+fn.substr(j+1);
+      part=0;
+    }
   }
   return fn;
 }
@@ -1378,7 +1385,10 @@ void print_progress(int64_t ts, int64_t td, int sum) {
     double eta=0.001*(mtime()-global_start)*(ts-td)/(td+1.0);
     printf("%5.2f%% %d:%02d:%02d ", td*100.0/(ts+0.5),
        int(eta/3600), int(eta/60)%60, int(eta)%60);
-    if (sum>0) printf("\r"), fflush(stdout);
+    if (sum>0) {
+      printf("\r");
+      fflush(stdout);
+    }
   }
 }
 
@@ -1780,8 +1790,14 @@ int Jidac::add() {
       for (string::const_iterator q=p->first.begin(); q!=p->first.end(); ++q){
         uint64_t c=*q&255;
         if (c>='A' && c<='Z') c+='a'-'A';
-        if (c=='/') sp=0, p->second.data=0;
-        else if (c=='.') sp=8, p->second.data=0;
+        if (c=='/') {
+          sp=0;
+          p->second.data=0;
+        }
+        else if (c=='.') {
+          sp=8;
+          p->second.data=0;
+        }
         else if (sp>3) p->second.data+=c<<(--sp*8);
       }
 
@@ -1950,12 +1966,20 @@ int Jidac::add() {
         unsigned h=0;  // rolling hash for finding fragment boundaries
         libzpaq::SHA1 sha1;
         while (true) {
-          if (bufptr>=buflen) bufptr=0, buflen=(int)fread(buf, 1, BUFSIZE, in);
+          if (bufptr>=buflen) {
+            bufptr=0;
+            buflen=(int)fread(buf, 1, BUFSIZE, in);
+          }
           if (bufptr>=buflen) c=EOF;
           else c=(unsigned char)buf[bufptr++];
           if (c!=EOF) {
-            if (c==o1[c1]) h=(h+c+1)*314159265u, ++hits;
-            else h=(h+c+1)*271828182u;
+            if (c==o1[c1]) {
+              h=(h+c+1)*314159265u;
+              ++hits;
+            }
+            else {
+              h=(h+c+1)*271828182u;
+            }
             o1[c1]=c;
             c1=c;
             sha1.put(c);
@@ -2292,7 +2316,10 @@ bool Jidac::equal(DTMap::const_iterator p, const char* filename) {
   FP in=fopen(filename, RB);
   if (in==FPNULL) return false;
   fseeko(in, 0, SEEK_END);
-  if (ftello(in)!=p->second.size) return fclose(in), false;
+  if (ftello(in)!=p->second.size) {
+    fclose(in);
+    return false;
+  }
 
   // compare hashes
   fseeko(in, 0, SEEK_SET);
@@ -2301,20 +2328,30 @@ bool Jidac::equal(DTMap::const_iterator p, const char* filename) {
   char buf[BUFSIZE];
   for (unsigned i=0; i<p->second.ptr.size(); ++i) {
     unsigned f=p->second.ptr[i];
-    if (f<1 || f>=ht.size() || ht[f].usize<0) return fclose(in), false;
+    if (f<1 || f>=ht.size() || ht[f].usize<0) {
+      fclose(in);
+      return false;
+    }
     for (int j=0; j<ht[f].usize;) {
       int n=ht[f].usize-j;
       if (n>BUFSIZE) n=BUFSIZE;
       int r=(int) fread(buf, 1, n, in);
       if (r!=n) {
-        return fclose(in), false;
+        fclose(in);
+        return false;
       }
       sha1.write(buf, n);
       j+=n;
     }
-    if (memcmp(sha1.result(), ht[f].sha1, 20)!=0) return fclose(in), false;
+    if (memcmp(sha1.result(), ht[f].sha1, 20)!=0) {
+      fclose(in);
+      return false;
+    }
   }
-  if (fread(buf, 1, BUFSIZE, in)!=0) return fclose(in), false;
+  if (fread(buf, 1, BUFSIZE, in)!=0) {
+    fclose(in);
+    return false;
+  }
   fclose(in);
   return true;
 }
