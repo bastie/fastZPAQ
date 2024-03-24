@@ -12,12 +12,8 @@ services using the ZPAQ level 2 format as described in
 http://mattmahoney.net/zpaq/
 
 An application wishing to use these services should #include "libzpaq.h"
-and link to libzpaq.cpp (and advapi32.lib in Windows/VC++).
+and link to libzpaq.cpp.
 libzpaq recognizes the following options:
-
-  -DDEBUG   Turn on assertion checks (slower).
-  -DNOJIT   Don't assume x86-32 or x86-64 with SSE2 (slower).
-  -Dunix    Without -DNOJIT, assume Unix (Linux, Mac) rather than Windows.
 
 The application must provide an error handling function and derived
 implementations of two abstract classes, Reader and Writer,
@@ -894,21 +890,18 @@ public:
   ~Array() {resize(0);}  // free memory
   size_t size() const {return n;}  // get size
   int isize() const {return int(n);}  // get size as an int
-  T& operator[](size_t i) {assert(n>0 && i<n); return data[i];}
-  T& operator()(size_t i) {assert(n>0 && (n&(n-1))==0); return data[i&(n-1)];}
+  T& operator[](size_t i) {return data[i];}
+  T& operator()(size_t i) {return data[i&(n-1)];}
 };
 
 // Change size to sz<<ex elements of 0
 template<typename T>
 void Array<T>::resize(size_t sz, int ex) {
-  assert(size_t(-1)>0);  // unsigned type?
   while (ex>0) {
     if (sz>sz*2) error("Array too big");
     sz*=2, --ex;
   }
   if (n>0) {
-    assert(offset>0 && offset<=64);
-    assert((char*)data-offset);
     ::free((char*)data-offset);
   }
   n=0;
@@ -920,7 +913,6 @@ void Array<T>::resize(size_t sz, int ex) {
   data=(T*)::calloc(nb, 1);
   if (!data) n=0, error("Out of memory");
   offset=64-(((char*)data-(char*)0)&63);
-  assert(offset>0 && offset<=64);
   data=(T*)((char*)data+offset);
 }
 
@@ -1095,12 +1087,9 @@ class StateTable {
 public:
   U8 ns[1024]; // state*4 -> next state if 0, if 1, n0, n1
   int next(int state, int y) {  // next state for bit y
-    assert(state>=0 && state<256);
-    assert(y>=0 && y<4);
     return ns[state*4+y];
   }
   int cminit(int state) {  // initial probability of 1 * 2^23
-    assert(state>=0 && state<256);
     return ((ns[state*4+3]*2+1)<<22)/(ns[state*4+2]+ns[state*4+3]+1);
   }
   StateTable();
@@ -1118,7 +1107,6 @@ public:
   void update(int y);   // train on bit y (0..1)
   int stat(int);        // Defined externally
   bool isModeled() {    // n>0 components?
-    assert(z.header.isize()>6);
     return z.header[6]!=0;
   }
 private:
@@ -1145,7 +1133,6 @@ private:
 
   // reduce prediction error in cr.cm
   void train(Component& cr, int y) {
-    assert(y==0 || y==1);
     U32& pn=cr.cm(cr.cxt);
     U32 count=pn&0x3ff;
     int error=y*32767-(cr.cm(cr.cxt)>>17);
@@ -1154,15 +1141,11 @@ private:
 
   // x -> floor(32768/(1+exp(-x/64)))
   int squash(int x) {
-    assert(initTables);
-    assert(x>=-2048 && x<=2047);
     return squasht[x+2048];
   }
 
   // x -> round(64*log((x+0.5)/(32767.5-x))), approx inverse of squash
   int stretch(int x) {
-    assert(initTables);
-    assert(x>=0 && x<=32767);
     return stretcht[x];
   }
 
@@ -1202,7 +1185,6 @@ public:
     if (rpos==wpos) {
       rpos=0;
       wpos=in ? in->read(&buf[0], BUFSIZE) : 0;
-      assert(wpos<=BUFSIZE);
     }
     return rpos<wpos ? U8(buf[rpos++]) : -1;
   }
@@ -1380,7 +1362,6 @@ class StringBuffer: public libzpaq::Reader, public libzpaq::Writer {
 
   // Increase capacity to a without changing size
   void reserve(size_t a) {
-    assert(!al==!p);
     if (a<=al) return;
     unsigned char* q=0;
     if (a>0) q=(unsigned char*)(p ? realloc(p, a) : malloc(a));
@@ -1391,7 +1372,6 @@ class StringBuffer: public libzpaq::Reader, public libzpaq::Writer {
 
   // Enlarge al to make room to write at least n bytes.
   void lengthen(size_t n) {
-    assert(wpos<=al);
     if (wpos+n>limit || wpos+n<wpos) error("StringBuffer overflow");
     if (wpos+n<=al) return;
     size_t a=al;
@@ -1406,7 +1386,7 @@ class StringBuffer: public libzpaq::Reader, public libzpaq::Writer {
 public:
 
   // Direct access to data
-  unsigned char* data() {assert(p || wpos==0); return p;}
+  unsigned char* data() {return p;}
 
   // Allocate no memory initially
   StringBuffer(size_t n=0):
@@ -1434,26 +1414,19 @@ public:
   // Write a single byte.
   void put(int c) {  // write 1 byte
     lengthen(1);
-    assert(p);
-    assert(wpos<al);
     p[wpos++]=c;
-    assert(wpos<=al);
   }
 
   // Write buf[0..n-1]. If buf is NULL then advance write pointer only.
   void write(const char* buf, int n) {
     if (n<1) return;
     lengthen(n);
-    assert(p);
-    assert(wpos+n<=al);
     if (buf) memcpy(p+wpos, buf, n);
     wpos+=n;
   }
 
   // Read a single byte. Return EOF (-1) at end.
   int get() {
-    assert(rpos<=wpos);
-    assert(rpos==wpos || p);
     return rpos<wpos ? p[rpos++] : -1;
   }
 
@@ -1461,9 +1434,6 @@ public:
   // Return the number of bytes actually read.
   // If buf is NULL then advance read pointer without reading.
   int read(char* buf, int n) {
-    assert(rpos<=wpos);
-    assert(wpos<=al);
-    assert(!al==!p);
     if (rpos+n>wpos) n=wpos-rpos;
     if (n>0 && buf) memcpy(buf, p+rpos, n);
     rpos+=n;

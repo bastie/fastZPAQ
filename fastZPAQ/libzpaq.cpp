@@ -5615,6 +5615,8 @@ std::string makeConfig(const char* method, int args[]) {
   return hdr+itos(ncomp)+"\n"+comp+hcomp+"halt\n"+pcomp;
 }
 
+// BASTIE: hier passiert das eigentlich komprimieren
+
 // Compress from in to out in 1 segment in 1 block using the algorithm
 // descried in method. If method begins with a digit then choose
 // a method depending on type. Save filename and comment
@@ -5658,64 +5660,9 @@ void compressBlock(StringBuffer* in, Writer* out, const char* method_,
     std::string htsz=","+itos(19+arg0+(arg0<=6));  // lz77 hash table size
     std::string sasz=","+itos(21+arg0);            // lz77 suffix array size
 
-    // store uncompressed
-    if (level==0)
-      method="0"+itos(arg0)+",0";
-
-    // LZ77, no model. Store if hard to compress
-    else if (level==1) {
-      if (type<40) method+=",0";
-      else {
-        method+=","+itos(1+doe8)+",";
-        if      (type<80)  method+="4,0,1,15";
-        else if (type<128) method+="4,0,2,16";
-        else if (type<256) method+="4,0,2"+htsz;
-        else if (type<960) method+="5,0,3"+htsz;
-        else               method+="6,0,3"+htsz;
-      }
-    }
-
-    // LZ77 with longer search
-    else if (level==2) {
-      if (type<32) method+=",0";
-      else {
-        method+=","+itos(1+doe8)+",";
-        if (type<64) method+="4,0,3"+htsz;
-        else method+="4,0,7"+sasz+",1";
-      }
-    }
-
-    // LZ77 with CM depending on redundancy
-    else if (level==3) {
-      if (type<20)  // store if not compressible
-        method+=",0";
-      else if (type<48)  // fast LZ77 if barely compressible
-        method+=","+itos(1+doe8)+",4,0,3"+htsz;
-      else if (type>=640 || (type&1))  // BWT if text or highly compressible
-        method+=","+itos(3+doe8)+"ci1";
-      else  // LZ77 with O0-1 compression of up to 12 literals
-        method+=","+itos(2+doe8)+",12,0,7"+sasz+",1c0,0,511i2";
-    }
-
-    // LZ77+CM, fast CM, or BWT depending on type
-    else if (level==4) {
-      if (type<12)
-        method+=",0";
-      else if (type<24)
-        method+=","+itos(1+doe8)+",4,0,3"+htsz;
-      else if (type<48)
-        method+=","+itos(2+doe8)+",5,0,7"+sasz+"1c0,0,511";
-      else if (type<900) {
-        method+=","+itos(doe8)+"ci1,1,1,1,2a";
-        if (type&1) method+="w";
-        method+="m";
-      }
-      else
-        method+=","+itos(3+doe8)+"ci1";
-    }
-
+    // Level <5 removed
     // Slow CM with lots of models
-    else {  // 5..9
+    // 5..9
 
       // Model text files
       method+=","+itos(doe8);
@@ -5758,7 +5705,7 @@ void compressBlock(StringBuffer* in, Writer* out, const char* method_,
           break;
       }
       method+="c0,2,0,255i1c0,3,0,0,255i1c0,4,0,0,0,255i1mm16ts19t0";
-    }
+    
   }
 
   // Compress
@@ -5774,6 +5721,7 @@ void compressBlock(StringBuffer* in, Writer* out, const char* method_,
   if (comment) cs=cs+" "+comment;
   co.startSegment(filename, cs.c_str());
   if (args[1]>=1 && args[1]<=7 && args[1]!=4) {  // LZ77 or BWT
+      printf ("HUHU");
     LZBuffer lz(*in, args);
     co.setInput(&lz);
     co.compress();

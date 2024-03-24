@@ -7,10 +7,10 @@ MANDIR=$(PREFIX)/share/man
 all: zpaq zpaq.1
 
 libzpaq.o: libzpaq.cpp libzpaq.h
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ -c libzpaq.cpp
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ -c ./fastZPAQ/libzpaq.cpp
 
 zpaq.o: zpaq.cpp libzpaq.h
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ -c zpaq.cpp -pthread
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -o $@ -c ./fastZPAQ/zpaq.cpp -pthread
 
 zpaq: zpaq.o libzpaq.o
 	$(CXX) $(LDFLAGS) -o $@ zpaq.o libzpaq.o -pthread
@@ -28,7 +28,7 @@ clean:
 	rm -f zpaq.o libzpaq.o zpaq zpaq.1 archive.zpaq zpaq.new
 
 check: zpaq
-	./zpaq add archive.zpaq zpaq
+	./zpaq add archive.zpaq zpaq -m9
 	./zpaq extract archive.zpaq zpaq -to zpaq.new
 	cmp zpaq zpaq.new
 	rm archive.zpaq zpaq.new

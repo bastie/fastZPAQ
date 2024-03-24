@@ -529,14 +529,14 @@ OutputArchive::OutputArchive(const char* filename, const char* password,
 
 // Guess number of cores. In 32 bit mode, max is 2.
 int numberOfProcessors() {
-  int rc=0;  // result
-  size_t rclen=sizeof(rc);
+  int result=0;
+  size_t rclen=sizeof(result);
   int mib[2]={CTL_HW, HW_NCPU};
-  if (sysctl(mib, 2, &rc, &rclen, 0, 0)!=0)
+  if (sysctl(mib, 2, &result, &rclen, 0, 0)!=0)
     perror("sysctl");
-  if (rc<1) rc=1;
-  if (sizeof(char*)==4 && rc>2) rc=2;
-  return rc;
+  if (result<1) result=1;
+  if (sizeof(char*)==4 && result>2) result=2;
+  return result;
 }
 
 ////////////////////////////// misc ///////////////////////////////////
@@ -1467,7 +1467,7 @@ void CompressJob::write(StringBuffer& s, const char* fn, string method,
     release(mutex);
   }
 }
-
+// BASTIE : hier kommt das Multithreading
 // Compress data in the background, one per buffer
 ThreadReturn compressThread(void* arg) {
   CompressJob& job=*(CompressJob*)arg;
@@ -1759,8 +1759,9 @@ int Jidac::add() {
   }
 
   // Make list of files to add or delete
-  for (unsigned i=0; i<files.size(); ++i)
-    scandir(files[i].c_str());
+    for (unsigned i=0; i<files.size(); ++i) {
+        scandir(files[i].c_str());
+    }
 
   // Sort the files to be added by filename extension and decreasing size
   vector<DTMap::iterator> vf;
@@ -1818,7 +1819,9 @@ int Jidac::add() {
                total_size/1000000.0, int(vf.size()), method.c_str(), threads,
                dateToString(date).c_str());
     }
-  for (unsigned i=0; i<tid.size(); ++i) run(tid[i], compressThread, &job);
+    for (unsigned i=0; i<tid.size(); ++i) {
+        run(tid[i], compressThread, &job);
+    }
   run(wid, writeThread, &job);
 
   // Append in streaming mode. Each file is a separate block. Large files
@@ -2194,10 +2197,6 @@ int Jidac::add() {
         if ((p->second.attr&255)=='u') {  // unix attributes
           puti(is, 3, 4);
           puti(is, p->second.attr, 3);
-        }
-        else if ((p->second.attr&255)=='w') {  // windows attributes
-          puti(is, 5, 4);
-          puti(is, p->second.attr, 5);
         }
         else puti(is, 0, 4);  // no attributes
         if (a==dt.end() || p->second.data) a=p;  // use new frag pointers
@@ -2722,7 +2721,7 @@ int Jidac::extract() {
         p->second.data=0;
       else if (block.size()>0) {  // files to decompress
         p->second.data=0;
-        unsigned lo=0, hi=block.size()-1;  // block indexes for binary search
+        unsigned lo=0, hi=(int)(block.size()-1);  // block indexes for binary search
         for (unsigned i=0; p->second.data>=0 && i<p->second.ptr.size(); ++i) {
           unsigned j=p->second.ptr[i];  // fragment index
           if (j==0 || j>=ht.size() || ht[j].usize<-1) {
@@ -2735,7 +2734,7 @@ int Jidac::extract() {
           if (lo!=hi || lo>=block.size() || j<block[lo].start
               || (lo+1<block.size() && j>=block[lo+1].start)) {
             lo=0;  // find block with fragment j by binary search
-            hi=block.size()-1;
+            hi=(int)(block.size()-1);
             while (lo<hi) {
               unsigned mid=(lo+hi+1)/2;
               if (j<block[mid].start) hi=mid-1;
@@ -3029,7 +3028,7 @@ int Jidac::list() {
   DTMap* dp[2]={&dt, &edt};
   for (int i=0; i<2; ++i) {
     for (DTMap::iterator p=dp[i]->begin(); p!=dp[i]->end(); ++p) {
-      int len=p->first.size();
+      const int len=p->first.size();
       if (len>0 && p->first[len]!='/') {
         for (int j=0; j<len; ++j) {
           if (p->first[j]=='/') {
